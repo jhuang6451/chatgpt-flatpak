@@ -1,0 +1,58 @@
+app-id: com.openai.chatgpt
+runtime: org.freedesktop.Platform
+runtime-version: "26.08"
+sdk: org.freedesktop.Sdk
+base: org.electronjs.Electron2.BaseApp
+base-version: "26.08"
+command: chatgpt
+separate-locales: false
+
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+  - --socket=pulseaudio
+  - --share=network
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --filesystem=xdg-download
+  - --filesystem=xdg-documents:ro
+  - --env=OZONE_PLATFORM=wayland
+
+modules:
+  - name: chatgpt
+    buildsystem: simple
+    build-options:
+      no-debuginfo: true
+      strip: false
+    sources:
+      - type: dir
+        path: extracted
+    build-commands:
+      # 1. 部署程序本体
+      - mkdir -p /app/lib/chatgpt /app/share/applications /app/bin /app/share/metainfo
+      - cp -a usr/lib/chatgpt/* /app/lib/chatgpt/
+
+      # 2. 安装并修正桌面文件
+      - install -Dm644 usr/share/applications/chatgpt.desktop /app/share/applications/com.openai.chatgpt.desktop
+      - desktop-file-edit --set-key=Exec --set-value="chatgpt %U" /app/share/applications/com.openai.chatgpt.desktop
+      - desktop-file-edit --set-key=Icon --set-value="com.openai.chatgpt" /app/share/applications/com.openai.chatgpt.desktop
+
+      # 3. 安装 AppStream 元数据
+      - install -Dm644 usr/share/metainfo/com.openai.chatgpt.metainfo.xml /app/share/metainfo/com.openai.chatgpt.metainfo.xml
+
+      # 4. 生成符合 Freedesktop 标准的多尺寸图标（避免 1024x1024 校验失败）
+      - |
+        for size in 16 32 48 64 128 256 512; do
+          mkdir -p /app/share/icons/hicolor/${size}x${size}/apps
+          ffmpeg -y -v error -i usr/share/pixmaps/chatgpt.png -vf scale=${size}:${size} /app/share/icons/hicolor/${size}x${size}/apps/com.openai.chatgpt.png
+        done
+
+      # 5. 生成 zypak 启动脚本
+      - |
+        cat << 'EOF' > /app/bin/chatgpt
+        #!/bin/sh
+        exec zypak-wrapper /app/lib/chatgpt/ChatGPT "$@"
+        EOF
+      - chmod +x /app/bin/chatgpt

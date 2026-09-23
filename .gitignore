@@ -1,0 +1,6 @@
+.flatpak-builder/
+build-dir/
+appdir/
+*.rpm
+*.flatpak
+extracted/
