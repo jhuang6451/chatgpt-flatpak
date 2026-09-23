@@ -17,7 +17,7 @@ finish-args:
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.kde.StatusNotifierWatcher
   - --filesystem=xdg-download
-  - --filesystem=xdg-documents:ro
+  - --filesystem=xdg-documents
   - --env=OZONE_PLATFORM=wayland
   - --filesystem=home
 

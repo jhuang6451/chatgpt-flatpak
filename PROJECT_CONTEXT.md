@@ -60,6 +60,17 @@ exec zypak-wrapper /app/lib/chatgpt/ChatGPT "$@"
         - 处理 `--argv0 codex-linux-sandbox`，剥离多余沙箱外层参数，利用 `execvp` 安全透明地移交命令给 codex 内置命令处理器及 Flatpak 自身的沙箱隔离环境。
      3. **自动化集成**：全套修补逻辑已写入 `com.openai.chatgpt.yaml` 的构建脚本中，构建后开箱即用。
 
+4. **运行时环境诊断反馈与说明**:
+   - **Documents 目录只读问题 (已彻底修复)**:
+     - *根因*: 清单 `finish-args` 中遗留了 `--filesystem=xdg-documents:ro`。Flatpak 的权限覆盖原则中，特异性更高的目录配置优先级高于 `--filesystem=home`，导致 `~/Documents` 被单独覆写为只读挂载。
+     - *修复*: 清单已修改为 `--filesystem=xdg-documents`（读写），并通过 `flatpak-builder --user --install` 重新构建部署，经 `/proc/self/mountinfo` 实测验证挂载已恢复为 `rw` 读写状态。
+   - **网络连接行为说明 (符合 Codex 安全策略预期)**:
+     - *Flatpak 层*: 容器开放了 `--share=network`，测试 `curl https://api.openai.com` 与 `google.com` 均秒通，Flatpak 外部网络环境完全正常。
+     - *Codex 沙箱内*: Codex Agent 执行命令默认采用 `"network": "restricted"` 安全隔离策略，沙箱内部会屏蔽外部网络连接。如果任务确实需要沙箱内联网，可在 ChatGPT 客户端界面中将执行权限调为 Full Access 或审批通过网络提升请求。
+   - **MCP 资源为空说明 (正常初始状态)**:
+     - 内置核心插件 `plugins.codex-app-tools@openai-bundled`（含 `codex_app`、`browser`、`computer-use` 等）均已正常加载并随服务拉起。
+     - MCP 资源列表为空是因为用户尚未配置自定义的第三方外部 MCP Server 连接器，属于客户端默认正常表现。
+
 ---
 
 ## 3. 完整 Flatpak 清单文件 (`com.openai.chatgpt.yaml`)
@@ -84,7 +95,7 @@ finish-args:
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.kde.StatusNotifierWatcher
   - --filesystem=xdg-download
-  - --filesystem=xdg-documents:ro
+  - --filesystem=xdg-documents
   - --env=OZONE_PLATFORM=wayland
   - --filesystem=home
 
