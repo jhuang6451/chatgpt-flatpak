@@ -1,7 +1,7 @@
 # OpenAI ChatGPT Linux 客户端 Flatpak 打包工程完整上下文 (Session 迁移存档)
 
 > **关联原始会话**: [ChatGPT 打包全流程记录](conversation://60352bf5-a979-4fbe-9b25-7d0a5d0ec82e)  
-> **归档时间**: 2026-09-23  
+> **归档与更新时间**: 2026-10-21 (同步更新至 26.1016.51333-1)  
 > **维护工程目录**: `/var/home/jhuang/Workspace/flatpak-chatgpt`
 
 ---
@@ -10,10 +10,12 @@
 
 * **官方 RPM 下载地址**: `https://persistent.oaistatic.com/codex-app-prod/linux/rpm/latest/chatgpt.x86_64.rpm`
 * **软件包规格**:
-  * 包名: `chatgpt-26.917.61114-1.x86_64`
+  * 包名: `chatgpt-26.1016.51333-1.x86_64`
   * 类型: 基于 Electron / Chromium 的 Codex Desktop Client
-  * 压缩体积: 443.6 MiB
-  * 解压后体积: ~1.4 GiB
+  * 压缩体积: 558.6 MiB
+  * 解压后体积: ~1.73 GiB
+  * 官方构建日期: 2026-10-21 07:28:27 UTC
+  * 官方 RPM SHA-256: `370ad1be76ce518d7c103df4cb694ad83a3dad4b18ba4d8ead27fe0ba7fd3c0d`
 * **上游包内目录结构**:
   * 核心应用: `/usr/lib/chatgpt/ChatGPT`（ELF 主程序）、`/usr/lib/chatgpt/codex-launcher`
   * 快捷方式: `/usr/share/applications/chatgpt.desktop`
@@ -53,8 +55,11 @@ exec zypak-wrapper /app/lib/chatgpt/ChatGPT "$@"
      3. 命名空间冲突：Flatpak 自身已是顶层 bubblewrap 沙盒，默认 seccomp 阻止二次创建 unprivileged user namespace（`CLONE_NEWUSER`）。原生 `bwrap` 在内部无法启动。
    * **完美解决策略**:
      1. **二进制热修补 (ELF Patch)**：
-        - 针对 `/app/lib/chatgpt/resources/codex` 反汇编定位校验点，将 `0x8757e4b` 处的条件跳转 `0f853affffff` (`jne`) 替换为 6 个 `NOP`（放行非绝对路径挂载根，使 `/run/.userns` 自然跳过而不报错）。
-        - 将 `0x87898b7` 处的内置 `bwrap` SHA-256 摘要校验 `752a` (`jne`) 替换为 2 个 `NOP`，允许使用自定义兼容垫片。
+        - 针对 `/app/lib/chatgpt/resources/codex` 反汇编定位校验点，将路径有效性检查分支（放行非绝对路径挂载根，使 `/run/.userns` 自然跳过而不报错）与内置 `bwrap` SHA-256 摘要校验分支进行精准修补。
+        - 针对当前版本 `26.1016.51333-1` (Codex `0.163.0-alpha.11`)：
+          * 挂载根绝对路径检查：`0x93f7573` 处 `41803f2f488b6c24200f8539ffffff` (`jne`) 替换为 6 个 `NOP` (`909090909090`)。
+          * bwrap SHA-256 摘要校验：`0x9436af4` 处 `660fefc9660f76c80f50c983f10f746a8b4c2428` (`je 0x9436b6e`) 替换为 `...eb6a...` (`jmp 0x9436b6e`)，无条件放行兼容垫片。
+        - 针对历史版本 `26.917.61114-1`：分别在 `0x8757e4b` (`0f853affffff` -> 6 NOPs) 与 `0x87898b7` (`752a` -> 2 NOPs)。
      2. **极简 C 语言 bwrap 兼容垫片**：
         - 编写并编译轻量级 `/app/bin/bwrap`（同时复制至 `codex-resources/bwrap` 与 `resources/bwrap`）。
         - 处理 `--argv0 codex-linux-sandbox`，剥离多余沙箱外层参数，利用 `execvp` 安全透明地移交命令给 codex 内置命令处理器及 Flatpak 自身的沙箱隔离环境。
@@ -136,14 +141,14 @@ modules:
             data = bytearray(f.read())
 
         # 1. 消除 mountinfo 非绝对路径报错 (nsfs user:[...] /run/.userns)
-        p1_before = bytes.fromhex("41803f2f488b5c24200f853affffff")
-        p1_after  = bytes.fromhex("41803f2f488b5c2420909090909090")
+        p1_before = bytes.fromhex("41803f2f488b6c24200f8539ffffff")
+        p1_after  = bytes.fromhex("41803f2f488b6c2420909090909090")
         assert data.count(p1_before) == 1, "mount_path check pattern not unique"
         data = data.replace(p1_before, p1_after)
 
         # 2. 绕过内置 bwrap SHA-256 摘要校验
-        p2_before = bytes.fromhex("660f748424a0010000660f748c2490010000660fdbc8660fd7c13dffff0000752a48bb00")
-        p2_after  = bytes.fromhex("660f748424a0010000660f748c2490010000660fdbc8660fd7c13dffff0000909048bb00")
+        p2_before = bytes.fromhex("660fefc9660f76c80f50c983f10f746a8b4c2428")
+        p2_after  = bytes.fromhex("660fefc9660f76c80f50c983f10feb6a8b4c2428")
         assert data.count(p2_before) == 1, "bwrap digest check pattern not unique"
         data = data.replace(p2_before, p2_after)
 
