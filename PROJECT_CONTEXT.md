@@ -254,3 +254,20 @@ flatpak build-bundle ~/.local/share/flatpak/repo com.openai.chatgpt.flatpak com.
 # 任何机器离线安装 Bundle
 flatpak install com.openai.chatgpt.flatpak
 ```
+
+---
+
+## 5. 生产级自动化重构与 GitHub Actions 架构 (2026-10-21)
+
+参考 `flatpak-agy` 最佳实践，本项目已重构为高内聚、零人工维护的生产级 Flatpak 应用仓库：
+* **远程仓库**: `git@github.com:jhuang6451/chatgpt-flatpak.git`
+* **GitHub Pages 主页**: `https://jhuang6451.github.io/chatgpt-flatpak/`
+* **核心组件与模块**:
+  1. `.github/workflows/build-and-deploy.yml`: 自动化构建、OSTree 静态增量切片生成、Pages 部署与 Release 发行包自动上传。
+  2. `.github/workflows/check-update.yml`: 每 6 小时自动轮询 OpenAI YUM 仓库 (`repomd.xml`)，新版自动更新清单与元数据。
+  3. `scripts/update-checker.py`: 官方 RPM 仓库更新检查器，支持解析 `primary.xml.gz` 提取最新版本与哈希。
+  4. `scripts/patch-codex.py`: 语义启发式二进制修补器，自动定位并清除 `mountinfo path is not absolute` 与 `bwrap digest` 拦截。
+  5. `bwrap_shim.c`: 独立 C 语言 bubblewrap 兼容转发垫片。
+  6. `web/`: 现代化 ChatGPT 风格的 Flatpak 仓库在线主页与一键安装页面。
+  7. `chatgpt.flatpakref` & `chatgpt.flatpakrepo`: 原生 Flatpak 仓库与单文件安装描述符。
+
