@@ -45,16 +45,42 @@ modules:
     build-commands:
       # 1. 部署主程序本体
       - mkdir -p /app/lib/chatgpt /app/bin
-      - cp -a usr/lib/chatgpt/* /app/lib/chatgpt/
+      - |
+        echo "=== Locating ChatGPT package files ==="
+        echo "Current directory: $(pwd)"
+        ls -la
+        if [ -d "extracted/usr/lib/chatgpt" ]; then
+          SRC_DIR="extracted/usr/lib/chatgpt"
+        elif [ -d "extracted/lib/chatgpt" ]; then
+          SRC_DIR="extracted/lib/chatgpt"
+        elif [ -d "usr/lib/chatgpt" ]; then
+          SRC_DIR="usr/lib/chatgpt"
+        elif [ -d "lib/chatgpt" ]; then
+          SRC_DIR="lib/chatgpt"
+        else
+          SRC_DIR=$(find . -maxdepth 4 -type d -name "chatgpt" -not -path "*/icons/*" | head -n 1)
+        fi
+        echo "Source directory resolved to: ${SRC_DIR}"
+        if [ -n "${SRC_DIR}" ] && [ -d "${SRC_DIR}" ]; then
+          cp -a "${SRC_DIR}"/* /app/lib/chatgpt/
+        else
+          echo "ERROR: Failed to find chatgpt files!"
+          find . -maxdepth 4
+          exit 1
+        fi
 
-      # 2. 安装启动脚本
+      # 2. 确保主程序及组件具备执行权限
+      - chmod +x /app/lib/chatgpt/ChatGPT
+      - chmod +x /app/lib/chatgpt/resources/codex || true
+
+      # 3. 安装启动脚本
       - install -Dm755 chatgpt.sh /app/bin/chatgpt
 
-      # 3. 安装桌面图标与 AppStream 元数据
+      # 4. 安装桌面图标与 AppStream 元数据
       - install -Dm644 com.openai.chatgpt.desktop /app/share/applications/com.openai.chatgpt.desktop
       - install -Dm644 com.openai.chatgpt.metainfo.xml /app/share/metainfo/com.openai.chatgpt.metainfo.xml
 
-      # 4. 安装标准 Hicolor 多尺寸图标
+      # 5. 安装标准 Hicolor 多尺寸图标
       - |
         for size in 16 24 32 48 64 128 256 512; do
           if [ -f "icons/hicolor/${size}x${size}/apps/com.openai.chatgpt.png" ]; then
@@ -63,10 +89,10 @@ modules:
           fi
         done
 
-      # 5. 修补 codex 二进制 (兼容 Flatpak 沙箱挂载与自定义 bwrap 垫片)
+      # 6. 修补 codex 二进制 (兼容 Flatpak 沙箱挂载与自定义 bwrap 垫片)
       - python3 patch-codex.py /app/lib/chatgpt/resources/codex
 
-      # 6. 编译安装 Flatpak 环境下的 bwrap 适配垫片
+      # 7. 编译安装 Flatpak 环境下的 bwrap 适配垫片
       - gcc -O2 bwrap_shim.c -o /app/bin/bwrap
       - chmod +x /app/bin/bwrap
       - mkdir -p /app/lib/chatgpt/resources/codex-resources
@@ -78,6 +104,7 @@ modules:
       - type: archive
         url: https://persistent.oaistatic.com/codex-app-prod/linux/rpm/x86_64/chatgpt-26.1016.51333-1.x86_64.rpm
         sha256: 370ad1be76ce518d7c103df4cb694ad83a3dad4b18ba4d8ead27fe0ba7fd3c0d
+        dest: extracted
         only-arches:
           - x86_64
 
