@@ -102,8 +102,8 @@ modules:
 
     sources:
       - type: archive
-        url: https://persistent.oaistatic.com/codex-app-prod/linux/rpm/x86_64/chatgpt-26.1016.51333-1.x86_64.rpm
-        sha256: 370ad1be76ce518d7c103df4cb694ad83a3dad4b18ba4d8ead27fe0ba7fd3c0d
+        url: https://persistent.oaistatic.com/codex-app-prod/linux/rpm/x86_64/chatgpt-26.1016.61520-1.x86_64.rpm
+        sha256: 1da3c997710ea5b21bb38d99f1e0945104ea350ad3840c02f71c1adfeac8e09d
         dest: extracted
         only-arches:
           - x86_64
