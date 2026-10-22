@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.openai.chatgpt</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
+  <name>ChatGPT</name>
+  <summary>Official ChatGPT Desktop Client by OpenAI</summary>
+
+  <description>
+    <p>
+      ChatGPT is the official desktop application for OpenAI's conversational AI assistant and Codex agent.
+      It provides intelligent dialogue, coding assistance, multimodal understanding, and local developer workflows.
+    </p>
+    <p>Key features include:</p>
+    <ul>
+      <li>Direct access to OpenAI models including GPT-4o, o1, and specialized developer tools</li>
+      <li>Integrated Codex agent capable of analyzing projects and executing sandboxed developer workflows</li>
+      <li>Full support for Wayland and X11 with native desktop integration and notifications</li>
+      <li>Production-grade Flatpak sandboxing with full read-write workspace and documents support</li>
+      <li>Automated updates, offline installation bundles, and self-hosted OSTree repository support</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">com.openai.chatgpt.desktop</launchable>
+
+  <url type="homepage">https://developers.openai.com/codex/app</url>
+  <url type="help">https://help.openai.com</url>
+  <url type="bugtracker">https://github.com/jhuang6451/chatgpt-flatpak/issues</url>
+  <url type="vcs-browser">https://github.com/jhuang6451/chatgpt-flatpak</url>
+
+  <developer id="com.openai">
+    <name>OpenAI</name>
+  </developer>
+
+  <categories>
+    <category>Utility</category>
+    <category>Development</category>
+    <category>Network</category>
+    <category>Chat</category>
+  </categories>
+
+  <provides>
+    <binary>chatgpt</binary>
+    <mediatype>x-scheme-handler/codex</mediatype>
+    <mediatype>x-scheme-handler/chatgpt</mediatype>
+  </provides>
+
+  <releases>
+    <release version="26.1016.51333" date="2026-10-21">
+      <description>
+        <p>Upstream ChatGPT Linux client version 26.1016.51333.</p>
+      </description>
+    </release>
+    <release version="26.917.61114" date="2026-09-23">
+      <description>
+        <p>Upstream ChatGPT Linux client version 26.917.61114.</p>
+      </description>
+    </release>
+  </releases>
+
+  <content_rating type="oars-1.1"/>
+</component>

@@ -1,0 +1,10 @@
+[Flatpak Ref]
+Name=com.openai.chatgpt
+Branch=stable
+Title=ChatGPT
+Comment=Official ChatGPT Desktop Client by OpenAI
+Icon=https://jhuang6451.github.io/chatgpt-flatpak/icons/com.openai.chatgpt.png
+Url=https://jhuang6451.github.io/chatgpt-flatpak/repo
+IsRuntime=false
+SuggestRemoteName=chatgpt
+gpg-verify=false

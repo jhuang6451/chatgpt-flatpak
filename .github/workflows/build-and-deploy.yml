@@ -1,0 +1,194 @@
+name: Build Flatpak & Deploy Repository
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'com.openai.chatgpt.yaml'
+      - 'chatgpt.sh'
+      - 'com.openai.chatgpt.desktop'
+      - 'com.openai.chatgpt.metainfo.xml'
+      - 'bwrap_shim.c'
+      - 'scripts/**'
+      - 'icons/**'
+      - '.github/workflows/build-and-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build Flatpak & Export Repository
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
+      options: --privileged
+    outputs:
+      app_version: ${{ steps.get_version.outputs.app_version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract Application Version
+        id: get_version
+        run: |
+          VERSION=$(grep -oP 'chatgpt-\K[0-9.]+(?=-)' com.openai.chatgpt.yaml | head -n 1)
+          if [ -z "$VERSION" ]; then
+            VERSION="26.1016.51333"
+          fi
+          echo "app_version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Building ChatGPT version: ${VERSION}"
+
+      - name: Install Runtime Dependencies
+        run: |
+          flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install -y --noninteractive flathub \
+            org.freedesktop.Platform//26.08 \
+            org.freedesktop.Sdk//26.08 \
+            org.electronjs.Electron2.BaseApp//26.08 || true
+
+      - name: Cache Flatpak Builder State
+        uses: actions/cache@v4
+        with:
+          path: |
+            .flatpak-builder
+          key: flatpak-builder-${{ runner.os }}-${{ hashFiles('com.openai.chatgpt.yaml') }}
+          restore-keys: |
+            flatpak-builder-${{ runner.os }}-
+
+      - name: Build Flatpak Package & OSTree Repo
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: com.openai.chatgpt.yaml
+          bundle: com.openai.chatgpt.flatpak
+          build-bundle: true
+          branch: stable
+          repo-dir: repo
+          cache: true
+          arch: x86_64
+
+      - name: Generate OSTree Static Deltas & Prune
+        run: |
+          flatpak build-update-repo --generate-static-deltas --prune repo
+          tar -czf ostree-repo.tar.gz -C repo .
+
+      - name: Upload Standalone Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatgpt-bundle
+          path: com.openai.chatgpt.flatpak
+          if-no-files-found: error
+
+      - name: Upload OSTree Repository Archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ostree-repo-archive
+          path: ostree-repo.tar.gz
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy to GitHub Pages & Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    env:
+      APP_VERSION: ${{ needs.build.outputs.app_version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Standalone Bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: chatgpt-bundle
+
+      - name: Download OSTree Repository Archive
+        uses: actions/download-artifact@v4
+        with:
+          name: ostree-repo-archive
+
+      - name: Prepare GitHub Pages Deployment Directory
+        run: |
+          mkdir -p deploy/repo deploy/icons
+
+          # Extract OSTree repository
+          tar -xzf ostree-repo.tar.gz -C deploy/repo/
+
+          # Copy Web UI
+          cp -a web/* deploy/
+
+          # Copy application icons
+          cp -a icons/hicolor/512x512/apps/com.openai.chatgpt.png deploy/icons/com.openai.chatgpt.png
+          cp -a icons/hicolor/512x512/apps/com.openai.chatgpt.png deploy/icons/512x512.png
+
+          # Copy flatpak repo and ref descriptors
+          cp chatgpt.flatpakrepo deploy/chatgpt.flatpakrepo
+          cp chatgpt.flatpakrepo deploy/repo/chatgpt.flatpakrepo
+          cp chatgpt.flatpakref deploy/chatgpt.flatpakref
+          cp chatgpt.flatpakref deploy/repo/chatgpt.flatpakref
+
+          # Disable Jekyll on GitHub Pages
+          touch deploy/.nojekyll
+
+      - name: Deploy to GitHub Pages (gh-pages branch)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./deploy
+          publish_branch: gh-pages
+          force_orphan: false
+          commit_message: "deploy: publish Flatpak repository for ChatGPT v${{ env.APP_VERSION }}"
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ env.APP_VERSION }}"
+          name: "ChatGPT Desktop v${{ env.APP_VERSION }}"
+          draft: false
+          prerelease: false
+          files: |
+            com.openai.chatgpt.flatpak
+            chatgpt.flatpakref
+            chatgpt.flatpakrepo
+          body: |
+            ## ChatGPT Desktop v${{ env.APP_VERSION }}
+
+            Official OpenAI ChatGPT Linux Desktop client packaged as a production-grade Flatpak.
+
+            ### 🚀 安装方式 (Installation)
+
+            #### 方式 1：添加软件源一键安装（推荐，支持全自动后台增量更新）
+            ```bash
+            # 1. 添加软件源
+            flatpak remote-add --if-not-exists chatgpt https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/chatgpt.flatpakrepo
+
+            # 2. 安装 ChatGPT
+            flatpak install -y chatgpt com.openai.chatgpt
+
+            # 3. 运行
+            flatpak run com.openai.chatgpt
+            ```
+
+            #### 方式 2：使用 `.flatpakref` 单文件图形化安装
+            下载本 Release 中的 `chatgpt.flatpakref`，双击或运行：
+            ```bash
+            flatpak install chatgpt.flatpakref
+            ```
+
+            #### 方式 3：离线单文件 Bundle 安装
+            下载 `com.openai.chatgpt.flatpak`，随后执行：
+            ```bash
+            flatpak install com.openai.chatgpt.flatpak
+            ```
+
+            ---
+            *自动化构建与发布由 GitHub Actions 驱动。*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

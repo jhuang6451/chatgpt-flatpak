@@ -1,6 +1,25 @@
+# Flatpak build directories & artifacts
 .flatpak-builder/
 build-dir/
 appdir/
-*.rpm
+repo/
+deploy/
 *.flatpak
+*.rpm
 extracted/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~
+*.log
