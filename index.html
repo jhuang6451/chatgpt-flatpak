@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChatGPT Flatpak - OpenAI ChatGPT Linux 客户端一键安装与自动更新</title>
+  <meta name="description" content="OpenAI ChatGPT Linux 官方桌面客户端的生产级 Flatpak 打包，集成 Codex 沙箱支持、一键安装、自动增量更新与 Wayland 原生支持。">
+  <link rel="icon" type="image/png" href="icons/com.openai.chatgpt.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="bg-glow"></div>
+  <header class="header">
+    <div class="container nav-content">
+      <div class="logo-group">
+        <img src="icons/com.openai.chatgpt.png" alt="ChatGPT Logo" class="app-icon">
+        <span class="app-title">ChatGPT Flatpak</span>
+      </div>
+      <div class="nav-links">
+        <a href="https://github.com/jhuang6451/chatgpt-flatpak" target="_blank" rel="noopener" class="nav-btn">
+          <svg height="20" width="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub 仓库
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container main-content">
+    <section class="hero">
+      <div class="badge">
+        <span class="badge-dot"></span>
+        生产级 Flatpak 仓库 · 实时自动同步 OpenAI 官方更新
+      </div>
+      <h1 class="hero-title">
+        OpenAI <span class="gradient-text">ChatGPT Desktop</span>
+      </h1>
+      <p class="hero-subtitle">
+        官方 ChatGPT Linux 桌面客户端。深度融合 Codex Agent 沙箱环境，完美解决嵌套容器挂载与命令执行限制，开箱即用。
+      </p>
+
+      <div class="actions">
+        <a href="chatgpt.flatpakref" class="btn btn-primary" download>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          一键安装 (.flatpakref)
+        </a>
+        <a href="#cli-install" class="btn btn-secondary">
+          终端命令安装
+        </a>
+        <a href="https://github.com/jhuang6451/chatgpt-flatpak/releases/latest" target="_blank" rel="noopener" class="btn btn-outline">
+          离线 Bundle 下载
+        </a>
+      </div>
+    </section>
+
+    <section id="cli-install" class="install-section">
+      <h2 class="section-title">终端快速安装（推荐）</h2>
+      <p class="section-desc">添加此 Flatpak 软件源后，即可享受系统原生的软件包管理与后台自动增量升级：</p>
+
+      <div class="code-box">
+        <div class="code-header">
+          <span>终端命令行安装</span>
+          <button class="copy-btn" onclick="copyCode('install-cmd')">复制命令</button>
+        </div>
+        <pre><code id="install-cmd"># 1. 添加 ChatGPT 软件源
+flatpak remote-add --if-not-exists chatgpt https://jhuang6451.github.io/chatgpt-flatpak/chatgpt.flatpakrepo
+
+# 2. 安装 ChatGPT 客户端
+flatpak install -y chatgpt com.openai.chatgpt
+
+# 3. 运行 ChatGPT
+flatpak run com.openai.chatgpt</code></pre>
+      </div>
+
+      <div class="code-box update-box">
+        <div class="code-header">
+          <span>日常更新命令</span>
+          <button class="copy-btn" onclick="copyCode('update-cmd')">复制命令</button>
+        </div>
+        <pre><code id="update-cmd"># 检查并更新到最新版本
+flatpak update com.openai.chatgpt</code></pre>
+      </div>
+    </section>
+
+    <section class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🤖</div>
+        <h3>Codex 沙箱无缝执行</h3>
+        <p>内置轻量级兼容垫片与挂载表适配，彻底解决 Flatpak 内部运行 Codex 时的 <code>mountinfo path is not absolute</code> 与 <code>bwrap</code> 嵌套冲突。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📁</div>
+        <h3>工作区读写安全互通</h3>
+        <p>精细化沙箱配置，完整支持 <code>~/Documents</code>、<code>~/Downloads</code> 与项目工程目录的读写互通，保障本地代码与数据处理通畅。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🚀</div>
+        <h3>全自动 CI/CD 持续发布</h3>
+        <p>GitHub Actions 每 6 小时监控 OpenAI 官方 RPM 仓库。检测到新版本后自动校验、智能修补、构建 OSTree 增量镜像并发布。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎨</div>
+        <h3>Wayland 原生支持</h3>
+        <p>内置自适应 Wayland/X11 探测逻辑与高分屏优化，支持 <code>~/.config/chatgpt-flags.conf</code> 自定义启动参数。</p>
+      </div>
+    </section>
+
+    <section class="manual-section">
+      <h2 class="section-title">其他安装选项</h2>
+      <div class="cards-duo">
+        <div class="sub-card">
+          <h4>单文件离线安装包 (Standalone Bundle)</h4>
+          <p>适用于无外网连接、网络受限或纯离线环境：</p>
+          <pre><code>flatpak install com.openai.chatgpt.flatpak</code></pre>
+        </div>
+        <div class="sub-card">
+          <h4>图形界面一键安装 (.flatpakref)</h4>
+          <p>下载 <code>chatgpt.flatpakref</code> 后，使用 GNOME Software、KDE Discover 或命令行打开即可自动配置并安装。</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-content">
+      <p>ChatGPT is a trademark of OpenAI. This project is an independent community Flatpak packaging.</p>
+      <p>开源维护由 GitHub Actions 与 OSTree 驱动 · <a href="https://github.com/jhuang6451/chatgpt-flatpak" target="_blank" rel="noopener">GitHub 仓库源码</a></p>
+    </div>
+  </footer>
+
+  <script>
+    function copyCode(elementId) {
+      const code = document.getElementById(elementId).innerText;
+      navigator.clipboard.writeText(code).then(() => {
+        const btn = event.target;
+        const originalText = btn.innerText;
+        btn.innerText = "已复制！";
+        btn.classList.add("copied");
+        setTimeout(() => {
+          btn.innerText = originalText;
+          btn.classList.remove("copied");
+        }, 2000);
+      });
+    }
+  </script>
+</body>
+</html>
