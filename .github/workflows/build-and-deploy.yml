@@ -98,6 +98,9 @@ jobs:
       contents: write
       pages: write
       id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     env:
       APP_VERSION: ${{ needs.build.outputs.app_version }}
     steps:
@@ -114,38 +117,6 @@ jobs:
         with:
           name: ostree-repo-archive
 
-      - name: Prepare GitHub Pages Deployment Directory
-        run: |
-          mkdir -p deploy/repo deploy/icons
-
-          # Extract OSTree repository
-          tar -xzf ostree-repo.tar.gz -C deploy/repo/
-
-          # Copy Web UI
-          cp -a web/* deploy/
-
-          # Copy application icons
-          cp -a icons/hicolor/512x512/apps/com.openai.chatgpt.png deploy/icons/com.openai.chatgpt.png
-          cp -a icons/hicolor/512x512/apps/com.openai.chatgpt.png deploy/icons/512x512.png
-
-          # Copy flatpak repo and ref descriptors
-          cp chatgpt.flatpakrepo deploy/chatgpt.flatpakrepo
-          cp chatgpt.flatpakrepo deploy/repo/chatgpt.flatpakrepo
-          cp chatgpt.flatpakref deploy/chatgpt.flatpakref
-          cp chatgpt.flatpakref deploy/repo/chatgpt.flatpakref
-
-          # Disable Jekyll on GitHub Pages
-          touch deploy/.nojekyll
-
-      - name: Deploy to GitHub Pages (gh-pages branch)
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./deploy
-          publish_branch: gh-pages
-          force_orphan: false
-          commit_message: "deploy: publish Flatpak repository for ChatGPT v${{ env.APP_VERSION }}"
-
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -155,6 +126,7 @@ jobs:
           prerelease: false
           files: |
             com.openai.chatgpt.flatpak
+            ostree-repo.tar.gz
             chatgpt.flatpakref
             chatgpt.flatpakrepo
           body: |
@@ -164,7 +136,19 @@ jobs:
 
             ### 🚀 安装方式 (Installation)
 
-            #### 方式 1：添加软件源一键安装（推荐，支持全自动后台增量更新）
+            #### 方式 1：离线单文件 Bundle 安装（推荐，开箱即用）
+            下载 Release 附件中的 `com.openai.chatgpt.flatpak`，随后在终端执行：
+            ```bash
+            flatpak install --user com.openai.chatgpt.flatpak
+            ```
+
+            #### 方式 2：使用 `.flatpakref` 单文件图形化安装
+            下载本 Release 中的 `chatgpt.flatpakref`，双击或运行：
+            ```bash
+            flatpak install chatgpt.flatpakref
+            ```
+
+            #### 方式 3：添加软件源一键安装（支持后台全自动增量升级）
             ```bash
             # 1. 添加软件源
             flatpak remote-add --if-not-exists chatgpt https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/chatgpt.flatpakrepo
@@ -176,19 +160,45 @@ jobs:
             flatpak run com.openai.chatgpt
             ```
 
-            #### 方式 2：使用 `.flatpakref` 单文件图形化安装
-            下载本 Release 中的 `chatgpt.flatpakref`，双击或运行：
-            ```bash
-            flatpak install chatgpt.flatpakref
-            ```
-
-            #### 方式 3：离线单文件 Bundle 安装
-            下载 `com.openai.chatgpt.flatpak`，随后执行：
-            ```bash
-            flatpak install com.openai.chatgpt.flatpak
-            ```
-
             ---
             *自动化构建与发布由 GitHub Actions 驱动。*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare Deployment Directories
+        run: |
+          # 1. 准备轻量级 Web 静态站点目录 (推送至 gh-pages 分支，避开 Git 100MB 单文件限制)
+          mkdir -p web-deploy/icons web-deploy/repo
+          cp -a web/* web-deploy/
+          cp -a icons/hicolor/512x512/apps/com.openai.chatgpt.png web-deploy/icons/com.openai.chatgpt.png
+          cp -a icons/hicolor/512x512/apps/com.openai.chatgpt.png web-deploy/icons/512x512.png
+          cp chatgpt.flatpakrepo web-deploy/chatgpt.flatpakrepo
+          cp chatgpt.flatpakrepo web-deploy/repo/chatgpt.flatpakrepo
+          cp chatgpt.flatpakref web-deploy/chatgpt.flatpakref
+          cp chatgpt.flatpakref web-deploy/repo/chatgpt.flatpakref
+          touch web-deploy/.nojekyll
+
+          # 2. 准备包含完整 OSTree 仓库的部署目录 (供 GitHub Actions Pages API 使用，无 Git 100MB 限制)
+          mkdir -p deploy/repo deploy/icons
+          tar -xzf ostree-repo.tar.gz -C deploy/repo/
+          cp -a web-deploy/* deploy/
+          touch deploy/.nojekyll
+
+      - name: Deploy Web Assets to GitHub Pages Branch (gh-pages)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./web-deploy
+          publish_branch: gh-pages
+          force_orphan: false
+          commit_message: "deploy: publish Web landing site for ChatGPT v${{ env.APP_VERSION }}"
+
+      - name: Upload Pages Artifact (Including Full OSTree Repository)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./deploy
+
+      - name: Deploy to GitHub Pages (Actions Environment)
+        id: deployment
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
