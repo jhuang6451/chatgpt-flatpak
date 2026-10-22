@@ -9,9 +9,9 @@ REPO_DIR="${REPO_DIR:-repo}"
 
 echo "==> Checking required Flatpak runtimes..."
 flatpak install -y --user flathub \
-  org.freedesktop.Platform//26.08 \
-  org.freedesktop.Sdk//26.08 \
-  org.electronjs.Electron2.BaseApp//26.08 || true
+  org.freedesktop.Platform//25.08 \
+  org.freedesktop.Sdk//25.08 \
+  org.electronjs.Electron2.BaseApp//25.08 || true
 
 BUILDER_CMD=""
 if command -v flatpak-builder >/dev/null 2>&1; then

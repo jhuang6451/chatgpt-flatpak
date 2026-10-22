@@ -7,7 +7,7 @@
     <a href="https://github.com/jhuang6451/chatgpt-flatpak/actions/workflows/build-and-deploy.yml"><img src="https://img.shields.io/github/actions/workflow/status/jhuang6451/chatgpt-flatpak/build-and-deploy.yml?branch=master&label=Build%20%26%20Deploy&logo=github-actions&logoColor=white" alt="Build Status" /></a>
     <a href="https://github.com/jhuang6451/chatgpt-flatpak/actions/workflows/check-update.yml"><img src="https://img.shields.io/github/actions/workflow/status/jhuang6451/chatgpt-flatpak/check-update.yml?branch=master&label=Auto%20Updater&logo=openai&logoColor=white" alt="Update Checker" /></a>
     <a href="https://github.com/jhuang6451/chatgpt-flatpak/releases/latest"><img src="https://img.shields.io/github/v/release/jhuang6451/chatgpt-flatpak?label=Latest%20Release&color=10a37f" alt="Latest Version" /></a>
-    <img src="https://img.shields.io/badge/Flatpak-v26.08-blue?logo=flatpak&logoColor=white" alt="Flatpak Runtime" />
+    <img src="https://img.shields.io/badge/Flatpak-v25.08-blue?logo=flatpak&logoColor=white" alt="Flatpak Runtime" />
     <img src="https://img.shields.io/badge/Architecture-x86__64-brightgreen" alt="Architecture" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green" alt="License" /></a>
   </p>
