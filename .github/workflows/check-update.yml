@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   check-update:
@@ -34,3 +35,10 @@ jobs:
           git add com.openai.chatgpt.yaml com.openai.chatgpt.metainfo.xml
           git commit -m "chore(release): bump ChatGPT to ${{ steps.check.outputs.version }} (release ${{ steps.check.outputs.release }})"
           git push origin master
+
+      - name: Trigger Build & Deploy Workflow
+        if: steps.check.outputs.updated == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run build-and-deploy.yml --ref master
