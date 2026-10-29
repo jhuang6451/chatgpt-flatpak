@@ -46,6 +46,11 @@
   </provides>
 
   <releases>
+    <release version="26.1027.30824" date="2026-10-29">
+      <description>
+        <p>Upstream ChatGPT Linux client version 26.1027.30824.</p>
+      </description>
+    </release>
     <release version="26.1023.51421" date="2026-10-27">
       <description>
         <p>Upstream ChatGPT Linux client version 26.1023.51421.</p>
