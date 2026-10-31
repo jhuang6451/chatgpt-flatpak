@@ -1,4 +1,9 @@
-# ChatGPT Flatpak
+# ChatGPT Flatpak (WIP)
+
+> [!WARNING]
+> **Work in progress.** This repository is being reworked. Codex command execution may not work in recent builds, and the OSTree repository is not GPG-signed yet. See [TODO.md](TODO.md) for the full list.
+>
+> **开发中。** 本仓库正在整改：近期版本中 Codex 执行命令可能不可用，软件源尚未 GPG 签名。完整问题清单见 [TODO.md](TODO.md)。
 
 <div align="center">
   <img src="icons/hicolor/128x128/apps/com.openai.chatgpt.png" alt="ChatGPT Logo" width="96" height="96" />
