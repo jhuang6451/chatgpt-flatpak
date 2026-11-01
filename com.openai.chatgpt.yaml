@@ -49,8 +49,12 @@ modules:
         echo "=== Locating ChatGPT package files ==="
         if [ -d "extracted/usr/lib/chatgpt" ]; then
           SRC_DIR="extracted/usr/lib/chatgpt"
+        elif [ -d "extracted/lib/chatgpt" ]; then
+          # flatpak-builder strips the first path component of archives by default
+          SRC_DIR="extracted/lib/chatgpt"
         else
-          echo "ERROR: extracted/usr/lib/chatgpt not found"
+          echo "ERROR: ChatGPT files not found under extracted/"
+          find extracted -maxdepth 3
           exit 1
         fi
         cp -a "${SRC_DIR}"/* /app/lib/chatgpt/
