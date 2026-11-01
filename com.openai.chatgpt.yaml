@@ -27,14 +27,14 @@ finish-args:
   # Hardware Acceleration
   - --device=dri
   # Filesystem permissions
-  - --filesystem=xdg-download
-  - --filesystem=xdg-documents
   - --filesystem=home
   # Desktop Integration & Notifications
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.kde.StatusNotifierWatcher
-  # Environment
-  - --env=OZONE_PLATFORM=wayland
+  # Credential storage (Electron safeStorage)
+  - --talk-name=org.freedesktop.secrets
+  - --talk-name=org.kde.kwalletd5
+  - --talk-name=org.kde.kwalletd6
 
 modules:
   - name: chatgpt
@@ -47,27 +47,13 @@ modules:
       - mkdir -p /app/lib/chatgpt /app/bin
       - |
         echo "=== Locating ChatGPT package files ==="
-        echo "Current directory: $(pwd)"
-        ls -la
         if [ -d "extracted/usr/lib/chatgpt" ]; then
           SRC_DIR="extracted/usr/lib/chatgpt"
-        elif [ -d "extracted/lib/chatgpt" ]; then
-          SRC_DIR="extracted/lib/chatgpt"
-        elif [ -d "usr/lib/chatgpt" ]; then
-          SRC_DIR="usr/lib/chatgpt"
-        elif [ -d "lib/chatgpt" ]; then
-          SRC_DIR="lib/chatgpt"
         else
-          SRC_DIR=$(find . -maxdepth 4 -type d -name "chatgpt" -not -path "*/icons/*" | head -n 1)
-        fi
-        echo "Source directory resolved to: ${SRC_DIR}"
-        if [ -n "${SRC_DIR}" ] && [ -d "${SRC_DIR}" ]; then
-          cp -a "${SRC_DIR}"/* /app/lib/chatgpt/
-        else
-          echo "ERROR: Failed to find chatgpt files!"
-          find . -maxdepth 4
+          echo "ERROR: extracted/usr/lib/chatgpt not found"
           exit 1
         fi
+        cp -a "${SRC_DIR}"/* /app/lib/chatgpt/
 
       # 2. 确保主程序及组件具备执行权限
       - chmod +x /app/lib/chatgpt/ChatGPT

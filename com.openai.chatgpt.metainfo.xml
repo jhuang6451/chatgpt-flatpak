@@ -8,16 +8,14 @@
 
   <description>
     <p>
-      ChatGPT is the official desktop application for OpenAI's conversational AI assistant and Codex agent.
-      It provides intelligent dialogue, coding assistance, multimodal understanding, and local developer workflows.
+      Desktop client for OpenAI's ChatGPT assistant and Codex coding agent, repackaged as a Flatpak.
+      This package is not published by OpenAI.
     </p>
-    <p>Key features include:</p>
     <ul>
-      <li>Direct access to OpenAI models including GPT-4o, o1, and specialized developer tools</li>
-      <li>Integrated Codex agent capable of analyzing projects and executing sandboxed developer workflows</li>
-      <li>Full support for Wayland and X11 with native desktop integration and notifications</li>
-      <li>Production-grade Flatpak sandboxing with full read-write workspace and documents support</li>
-      <li>Automated updates, offline installation bundles, and self-hosted OSTree repository support</li>
+      <li>ChatGPT conversations and the Codex agent in a native desktop window</li>
+      <li>Wayland and X11 support, with desktop notifications</li>
+      <li>Read-write access to the home directory, so Codex can work on local projects</li>
+      <li>Updates through a self-hosted Flatpak repository</li>
     </ul>
   </description>
 
@@ -34,9 +32,6 @@
 
   <categories>
     <category>Utility</category>
-    <category>Development</category>
-    <category>Network</category>
-    <category>Chat</category>
   </categories>
 
   <provides>

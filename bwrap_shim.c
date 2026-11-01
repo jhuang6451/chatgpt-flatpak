@@ -7,8 +7,11 @@
 
 /*
  * Bubblewrap Compatibility Shim for Flatpak
- * Transparently strips nested sandbox flags and forwards commands to the
- * parent Flatpak container environment.
+ * Nested user namespaces are not available inside a Flatpak sandbox, so this
+ * shim does NOT create a sandbox. It honours the options that only affect the
+ * child process (--argv0, --chdir, --die-with-parent, --setenv, --unsetenv,
+ * --clearenv) and ignores every mount / namespace option. Commands run with
+ * the permissions of the surrounding Flatpak sandbox.
  */
 
 int main(int argc, char *argv[]) {
@@ -36,6 +39,15 @@ int main(int argc, char *argv[]) {
             if (chdir(argv[++i]) != 0) {
                 perror("chdir");
             }
+        } else if (strcmp(argv[i], "--setenv") == 0 && i + 2 < argc) {
+            if (setenv(argv[i + 1], argv[i + 2], 1) != 0) {
+                perror("setenv");
+            }
+            i += 2;
+        } else if (strcmp(argv[i], "--unsetenv") == 0 && i + 1 < argc) {
+            unsetenv(argv[++i]);
+        } else if (strcmp(argv[i], "--clearenv") == 0) {
+            clearenv();
         } else if (strcmp(argv[i], "--") == 0) {
             cmd_idx = i + 1;
             break;
