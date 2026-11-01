@@ -32,7 +32,7 @@ echo "==> Updating repository index & generating static deltas..."
 flatpak build-update-repo --generate-static-deltas "${REPO_DIR}"
 
 echo "==> Building standalone bundle..."
-flatpak build-bundle "${REPO_DIR}" com.openai.chatgpt.flatpak com.openai.chatgpt stable
+flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo "${REPO_DIR}" com.openai.chatgpt.flatpak com.openai.chatgpt stable
 
 echo "==> Done! You can install and test your local build with:"
 echo "    flatpak install --user --bundle com.openai.chatgpt.flatpak"

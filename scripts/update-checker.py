@@ -11,11 +11,9 @@ import os
 import re
 import sys
 import gzip
-import json
 import argparse
 import datetime
 import subprocess
-import urllib.request
 import xml.etree.ElementTree as ET
 
 REPO_BASE_URL = "https://persistent.oaistatic.com/codex-app-prod/linux/rpm/x86_64"
@@ -25,29 +23,12 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MANIFEST_PATH = os.path.join(REPO_ROOT, "com.openai.chatgpt.yaml")
 METAINFO_PATH = os.path.join(REPO_ROOT, "com.openai.chatgpt.metainfo.xml")
 
-USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
-
 
 def fetch_url(url, timeout=30):
-    """Fetch URL using curl (handles Cloudflare TLS fingerprinting and proxies)."""
+    """Fetch URL using curl (handles Cloudflare TLS fingerprinting; proxies come from the environment)."""
     cmd = ["curl", "-sSL", "--fail", "--connect-timeout", "15", "-m", str(timeout)]
 
-    # Add proxy if specified or if local standard proxy is running and no env proxy set
-    proxy = os.environ.get("https_proxy") or os.environ.get("http_proxy") or os.environ.get("all_proxy")
-    if not proxy:
-        # Check if local clash/mihomo proxy is listening
-        try:
-            import socket
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(0.5)
-                if s.connect_ex(("127.0.0.1", 7890)) == 0:
-                    proxy = "http://127.0.0.1:7890"
-        except Exception:
-            pass
-
-    if proxy:
-        cmd.extend(["-x", proxy])
-
+    # curl honours http_proxy / https_proxy / all_proxy from the environment on its own.
     cmd.append(url)
     return subprocess.check_output(cmd)
 
@@ -84,7 +65,12 @@ def fetch_latest_upstream_release():
     }
     p_root = ET.fromstring(primary_xml)
 
-    latest_pkg = None
+    def sort_key(pkg):
+        ver = tuple(int(x) for x in re.findall(r"\d+", pkg["version"]))
+        rel = tuple(int(x) for x in re.findall(r"\d+", pkg["release"]))
+        return (ver, rel)
+
+    candidates = []
     for pkg in p_root.findall("common:package", p_ns):
         name_elem = pkg.find("common:name", p_ns)
         if name_elem is not None and name_elem.text == "chatgpt":
@@ -99,7 +85,7 @@ def fetch_latest_upstream_release():
             href = location_elem.attrib.get("href")
             build_time = int(time_elem.attrib.get("build", 0))
 
-            latest_pkg = {
+            candidates.append({
                 "version": ver,
                 "release": rel,
                 "full_version": f"{ver}-{rel}",
@@ -108,13 +94,13 @@ def fetch_latest_upstream_release():
                 "filename": href,
                 "build_time": build_time,
                 "date": datetime.datetime.fromtimestamp(build_time, tz=datetime.timezone.utc).strftime("%Y-%m-%d")
-            }
-            break
+            })
 
-    if not latest_pkg:
+    if not candidates:
         raise RuntimeError("No chatgpt package entry found in primary metadata")
 
-    return latest_pkg
+    # Do not rely on entry order in primary.xml: take the highest version.
+    return max(candidates, key=sort_key)
 
 
 def parse_current_manifest():
