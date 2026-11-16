@@ -60,10 +60,11 @@ Codex 通过 bubblewrap 执行 shell 命令,在 Flatpak 里会失败:
 * 网络限制有效:在 `codex sandbox` 中 DNS 解析失败,`connect()` 返回 `EPERM`。
 * 文件系统限制无效:默认沙箱模式下的命令可以在工作目录之外的 `$HOME` 中创建文件。
 * Electron `safeStorage` 使用系统密钥环:`config/Codex/Default/Cookies` 中的 Cookie 带 `v11` 前缀(密钥来自密钥环)。仅有的一条 `v10` 记录早于密钥环权限的加入。
-* Runtime 里有 `python3` 和 `curl`,没有 `git`、`node`、`gcc`、`make`。应用没有 `org.freedesktop.Flatpak` 权限,除非用户手动授予,Codex 用不到宿主工具。
+* Runtime 里有 `python3` 和 `curl`,没有 `git`、`node`、`gcc`、`make`。有了 `org.freedesktop.Flatpak` 权限后,在开启网络(`sandbox_workspace_write.network_access=true`)或 `danger-full-access` 模式下,`codex sandbox` 里可以执行 `flatpak-spawn --host git --version`。默认的受限网络模式下会报 `Can't find bus: Operation not permitted`,因为 Codex 的 seccomp 规则也拦住了 D-Bus 套接字。
 
 ### 2.5 权限
 * `--filesystem=home` 让 Codex 能处理用户目录中任意位置的项目。早先的 `--filesystem=xdg-documents:ro` 会覆盖它,使 `~/Documents` 变为只读,已删除。
+* `org.freedesktop.Flatpak`(2026-11-15 加入)让 Codex 能通过 `flatpak-spawn --host` 使用宿主工具。可写的 `home` 本来就允许命令往 `~/.bashrc` 或自启动项里写代码,所以这项权限实际增加的暴露面很小,也与 flatpak-claude-desktop 和 antigravity-flatpak 保持一致。
 * `org.freedesktop.secrets` 和 `org.kde.kwalletd5/6` 供 Electron `safeStorage` 使用。
 
 ---

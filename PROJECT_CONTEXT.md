@@ -60,10 +60,11 @@ Fixes:
 * Network restriction holds: inside `codex sandbox`, DNS resolution fails and `connect()` returns `EPERM`.
 * Filesystem restriction does not: a command in the default sandbox mode could create a file in `$HOME` outside the working directory.
 * Electron `safeStorage` uses the system keyring: cookies in `config/Codex/Default/Cookies` carry the `v11` prefix (keyring-backed key). One older `v10` entry predates the keyring permissions.
-* The runtime has `python3` and `curl` but no `git`, `node`, `gcc`, or `make`. The app has no `org.freedesktop.Flatpak` permission, so Codex can't reach host tools unless the user grants it.
+* The runtime has `python3` and `curl` but no `git`, `node`, `gcc`, or `make`. With `org.freedesktop.Flatpak`, `flatpak-spawn --host git --version` works from `codex sandbox` when network access is enabled (`sandbox_workspace_write.network_access=true`) or in `danger-full-access` mode. In the default restricted-network mode it fails with `Can't find bus: Operation not permitted`, because Codex's seccomp filter also blocks the D-Bus socket.
 
 ### 2.5 Permissions
 * `--filesystem=home` lets Codex work on projects anywhere in the home directory. An earlier `--filesystem=xdg-documents:ro` overrode it and made `~/Documents` read-only; it has been removed.
+* `org.freedesktop.Flatpak` (added 2026-11-15) lets Codex run host tools through `flatpak-spawn --host`. Writable `home` already lets a command plant code in `~/.bashrc` or autostart entries, so this adds little real exposure, and it matches flatpak-claude-desktop and antigravity-flatpak.
 * `org.freedesktop.secrets` and `org.kde.kwalletd5/6` are for Electron `safeStorage`.
 
 ---

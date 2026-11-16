@@ -110,7 +110,9 @@ flatpak run com.openai.chatgpt</code></pre>
     <section id="permissions" class="block">
       <div class="container">
         <h2>Permissions</h2>
-        <p>ChatGPT and every command Codex runs can read and write your whole home directory. The app can't run commands on the host.</p>
+        <div class="callout">
+          <p>This Flatpak has weak sandbox isolation. ChatGPT and every command Codex runs can read and write your whole home directory, and the app can run arbitrary commands on the host through <code>flatpak-spawn --host</code>, so it effectively has the current user's privileges. Both permissions stay so Codex can work on any project and use host tools such as <code>git</code>.</p>
+        </div>
         <div class="table-wrap">
           <table>
             <thead>
@@ -118,6 +120,7 @@ flatpak run com.openai.chatgpt</code></pre>
             </thead>
             <tbody>
               <tr><td><code>--filesystem=home</code></td><td>Read and write the home directory, so Codex can work on local projects</td></tr>
+              <tr><td><code>--talk-name=org.freedesktop.Flatpak</code></td><td>Run host tools such as <code>git</code></td></tr>
               <tr><td><code>--share=network</code></td><td>ChatGPT and Codex services</td></tr>
               <tr><td><code>--device=dri</code></td><td>GPU acceleration</td></tr>
               <tr><td>Wayland, X11, PulseAudio</td><td>Display, audio, and voice</td></tr>
@@ -125,13 +128,14 @@ flatpak run com.openai.chatgpt</code></pre>
             </tbody>
           </table>
         </div>
-        <p style="margin-top: 20px;">To limit access to one project directory, use Flatseal or this command:</p>
+        <p style="margin-top: 20px;">To tighten permissions, use Flatseal or these commands:</p>
         <div class="code-box">
           <div class="code-head">
             <span>shell</span>
             <button class="copy-btn" type="button">Copy</button>
           </div>
-          <pre><code>flatpak override --user --nofilesystem=home --filesystem=~/Projects com.openai.chatgpt</code></pre>
+          <pre><code>flatpak override --user --nofilesystem=home --filesystem=~/Projects com.openai.chatgpt
+flatpak override --user --no-talk-name=org.freedesktop.Flatpak com.openai.chatgpt</code></pre>
         </div>
       </div>
     </section>
@@ -142,7 +146,7 @@ flatpak run com.openai.chatgpt</code></pre>
         <ul class="plain">
           <li><strong>x86_64 only.</strong> OpenAI publishes only x86_64 RPMs.</li>
           <li><strong>Codex filesystem sandboxing is not enforced.</strong> Network restriction still works.</li>
-          <li><strong>Few developer tools inside the sandbox.</strong> The runtime has <code>python3</code> and <code>curl</code>, but no <code>git</code>, <code>node</code>, <code>gcc</code>, or <code>make</code>. To use host tools, grant <code>--talk-name=org.freedesktop.Flatpak</code> and call them through <code>flatpak-spawn --host</code>, which gives the app full access to your account.</li>
+          <li><strong>Host tools need <code>flatpak-spawn --host</code>.</strong> The runtime has no <code>git</code>, <code>node</code>, <code>gcc</code>, or <code>make</code>. Codex has to call host tools as <code>flatpak-spawn --host git ...</code>, which only works when the task has network or full access, because the restricted-network seccomp filter also blocks D-Bus.</li>
           <li><strong>New upstream versions can break the patches.</strong> The build then fails and the repository stays on the previous version until the patterns are updated.</li>
         </ul>
       </div>

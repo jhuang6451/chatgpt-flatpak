@@ -110,7 +110,9 @@ flatpak run com.openai.chatgpt</code></pre>
     <section id="permissions" class="block">
       <div class="container">
         <h2>权限</h2>
-        <p>ChatGPT 和 Codex 执行的每条命令都能读写整个用户目录。应用不能在宿主系统上执行命令。</p>
+        <div class="callout">
+          <p>这个 Flatpak 的沙箱隔离很弱。ChatGPT 和 Codex 执行的每条命令都能读写整个用户目录,应用还能通过 <code>flatpak-spawn --host</code> 在宿主系统执行任意命令,实际拥有当前用户的权限。保留这两项是为了让 Codex 能处理任意项目,并使用 <code>git</code> 等宿主工具。</p>
+        </div>
         <div class="table-wrap">
           <table>
             <thead>
@@ -118,6 +120,7 @@ flatpak run com.openai.chatgpt</code></pre>
             </thead>
             <tbody>
               <tr><td><code>--filesystem=home</code></td><td>读写用户目录,供 Codex 处理本地项目</td></tr>
+              <tr><td><code>--talk-name=org.freedesktop.Flatpak</code></td><td>使用 <code>git</code> 等宿主工具</td></tr>
               <tr><td><code>--share=network</code></td><td>访问 ChatGPT 和 Codex 服务</td></tr>
               <tr><td><code>--device=dri</code></td><td>GPU 加速</td></tr>
               <tr><td>Wayland、X11、PulseAudio</td><td>显示、音频和语音</td></tr>
@@ -125,13 +128,14 @@ flatpak run com.openai.chatgpt</code></pre>
             </tbody>
           </table>
         </div>
-        <p style="margin-top: 20px;">想只开放一个项目目录,可以用 Flatseal 或下面的命令:</p>
+        <p style="margin-top: 20px;">想收紧权限,可以用 Flatseal 或下面的命令:</p>
         <div class="code-box">
           <div class="code-head">
             <span>shell</span>
             <button class="copy-btn" type="button" data-done="已复制">复制</button>
           </div>
-          <pre><code>flatpak override --user --nofilesystem=home --filesystem=~/Projects com.openai.chatgpt</code></pre>
+          <pre><code>flatpak override --user --nofilesystem=home --filesystem=~/Projects com.openai.chatgpt
+flatpak override --user --no-talk-name=org.freedesktop.Flatpak com.openai.chatgpt</code></pre>
         </div>
       </div>
     </section>
@@ -142,7 +146,7 @@ flatpak run com.openai.chatgpt</code></pre>
         <ul class="plain">
           <li><strong>仅 x86_64。</strong>OpenAI 只发布 x86_64 的 RPM。</li>
           <li><strong>Codex 的文件系统沙箱不生效。</strong>网络限制仍然有效。</li>
-          <li><strong>沙箱里的开发工具很少。</strong>Runtime 里有 <code>python3</code> 和 <code>curl</code>,没有 <code>git</code>、<code>node</code>、<code>gcc</code>、<code>make</code>。要使用宿主工具,可以授予 <code>--talk-name=org.freedesktop.Flatpak</code> 并通过 <code>flatpak-spawn --host</code> 调用,这样应用会拥有你账户的全部权限。</li>
+          <li><strong>宿主工具要通过 <code>flatpak-spawn --host</code> 调用。</strong>Runtime 里没有 <code>git</code>、<code>node</code>、<code>gcc</code>、<code>make</code>。Codex 需要写成 <code>flatpak-spawn --host git ...</code>,而且只在任务有网络或完全访问权限时可用,因为受限网络模式的 seccomp 也会拦住 D-Bus。</li>
           <li><strong>上游新版本可能让补丁失效。</strong>这时构建会失败,软件源停在上一个版本,直到补丁模式更新。</li>
         </ul>
       </div>

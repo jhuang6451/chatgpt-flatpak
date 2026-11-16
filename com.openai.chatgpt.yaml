@@ -28,6 +28,8 @@ finish-args:
   - --device=dri
   # Filesystem permissions
   - --filesystem=home
+  # Host command execution (flatpak-spawn --host), for git, compilers and other host tools
+  - --talk-name=org.freedesktop.Flatpak
   # Desktop Integration & Notifications
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.kde.StatusNotifierWatcher

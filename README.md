@@ -30,6 +30,7 @@ The build downloads the RPM from OpenAI's YUM repository, checks its SHA-256, an
 - The package comes from OpenAI's official YUM repository. The manifest pins the download URL and SHA-256.
 - Two checks in the `codex` binary are patched, and a small `bwrap` shim replaces bubblewrap. CI runs a command through the Codex sandbox after every build.
 - The launcher detects Wayland and enables the matching Ozone flags. A config file can add more Electron flags.
+- `flatpak-spawn --host` lets Codex use git, compilers, and other tools installed on the host.
 - Login state is stored in GNOME Keyring or KDE Wallet.
 - GitHub Actions checks upstream every 6 hours. When a new version appears, it updates the manifest, builds, and publishes.
 
@@ -123,7 +124,9 @@ The shim does not create a sandbox, so Codex's filesystem restrictions are not e
 
 ## Permissions and security
 
-The manifest grants `--filesystem=home`, so ChatGPT and every command Codex runs can read and write your whole home directory, including dotfiles such as `~/.ssh`. Because the bubblewrap shim doesn't isolate anything, Codex's own sandbox modes don't narrow that. The app has no `org.freedesktop.Flatpak` permission, so it can't run commands on the host.
+This Flatpak has weak sandbox isolation. Read this before installing.
+
+The manifest grants `--filesystem=home` and `--talk-name=org.freedesktop.Flatpak`. The first lets ChatGPT and every command Codex runs read and write your whole home directory, including dotfiles such as `~/.ssh`; because the bubblewrap shim doesn't isolate anything, Codex's own sandbox modes don't narrow that. The second lets the app run arbitrary commands on the host through `flatpak-spawn --host`. Together they give the app all of the current user's privileges. They stay because Codex needs access to arbitrary project directories and to host tools such as `git`, which the runtime doesn't include.
 
 The full permission list:
 
@@ -134,13 +137,18 @@ The full permission list:
 | `--socket=pulseaudio` | Audio and voice |
 | `--device=dri` | GPU acceleration |
 | `--filesystem=home` | Read and write the home directory, so Codex can work on local projects |
+| `--talk-name=org.freedesktop.Flatpak` | Run host tools with `flatpak-spawn --host` |
 | `--talk-name=org.freedesktop.Notifications`, `org.kde.StatusNotifierWatcher` | Notifications, tray icon |
 | `--talk-name=org.freedesktop.secrets`, `org.kde.kwalletd5`, `org.kde.kwalletd6` | Keyring for Electron `safeStorage` |
 
-To limit access to one project directory, use [Flatseal](https://flathub.org/apps/com.github.tchx84.Flatseal) or the command line:
+To tighten permissions, use [Flatseal](https://flathub.org/apps/com.github.tchx84.Flatseal) or the command line:
 
 ```bash
+# Only one project directory instead of all of $HOME
 flatpak override --user --nofilesystem=home --filesystem=~/Projects com.openai.chatgpt
+
+# No host command execution
+flatpak override --user --no-talk-name=org.freedesktop.Flatpak com.openai.chatgpt
 ```
 
 Undo all overrides with `flatpak override --user --reset com.openai.chatgpt`.
@@ -149,7 +157,7 @@ Undo all overrides with `flatpak override --user --reset com.openai.chatgpt`.
 
 - **x86_64 only.** OpenAI publishes only x86_64 RPMs.
 - **Codex filesystem sandboxing is not enforced.** See [How Codex runs inside Flatpak](#how-codex-runs-inside-flatpak). Network restriction still works.
-- **Few developer tools inside the sandbox.** Codex sees only the freedesktop runtime: `python3` and `curl` are there, `git`, `node`, `gcc`, and `make` are not, and host programs are not on `PATH`. If you want Codex to use host tools, grant `flatpak override --user --talk-name=org.freedesktop.Flatpak com.openai.chatgpt` and run them through `flatpak-spawn --host`. That gives the app full access to your user account on the host.
+- **Host tools need `flatpak-spawn --host`.** The runtime has `python3` and `curl` but no `git`, `node`, `gcc`, or `make`, and host programs are not on `PATH`. Codex has to call them as `flatpak-spawn --host git ...`; adding a line saying so to `~/.codex/AGENTS.md` helps. This only works when the task has network access or full access: in Codex's default restricted-network mode, seccomp also blocks the D-Bus connection that `flatpak-spawn` needs.
 - **New upstream versions can break the patches.** If OpenAI changes the code around either check, `patch-codex.py` stops the build and the repository stays on the previous version until the patterns are updated.
 - **The offline bundle doesn't install the runtime.** Enable Flathub before installing it.
 

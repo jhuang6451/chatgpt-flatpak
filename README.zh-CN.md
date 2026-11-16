@@ -32,6 +32,7 @@ OpenAI 只为 Linux 提供 RPM 格式的 ChatGPT 客户端,其中包含 Codex �
 - 安装包来自 OpenAI 官方 YUM 源,清单中固定了下载地址和 SHA-256。
 - 修补 `codex` 二进制中的两处检查,并用一个小的 `bwrap` 垫片替代 bubblewrap。每次构建后,持续集成会通过 Codex 沙箱实际执行一条命令。
 - 启动脚本会检测 Wayland 并启用对应的 Ozone 参数,也支持用配置文件追加 Electron 参数。
+- 通过 `flatpak-spawn --host`,Codex 可以使用宿主系统上的 git、编译器等工具。
 - 登录状态保存在 GNOME Keyring 或 KDE Wallet 中。
 - GitHub Actions 每 6 小时检查一次上游,发现新版本后自动更新清单、构建并发布。
 
@@ -125,7 +126,9 @@ Codex 通过 bubblewrap 执行每一条 shell 命令。在 Flatpak 里这会在�
 
 ## 权限与安全
 
-清单授予了 `--filesystem=home`,ChatGPT 和 Codex 执行的每条命令都能读写整个用户目录,包括 `~/.ssh` 这类点文件。由于 bubblewrap 垫片不做隔离,Codex 自己的沙箱模式也收窄不了这个范围。应用没有 `org.freedesktop.Flatpak` 权限,不能在宿主系统上执行命令。
+这个 Flatpak 的沙箱隔离很弱,请在安装前了解这一点。
+
+清单授予了 `--filesystem=home` 和 `--talk-name=org.freedesktop.Flatpak`。前者让 ChatGPT 和 Codex 执行的每条命令都能读写整个用户目录,包括 `~/.ssh` 这类点文件;由于 bubblewrap 垫片不做隔离,Codex 自己的沙箱模式也收窄不了这个范围。后者允许应用通过 `flatpak-spawn --host` 在宿主系统执行任意命令。两项合起来,应用实际拥有当前用户的全部权限。保留它们是因为 Codex 需要访问任意项目目录,并使用 `git` 等 Runtime 里没有的宿主工具。
 
 完整权限如下:
 
@@ -136,13 +139,18 @@ Codex 通过 bubblewrap 执行每一条 shell 命令。在 Flatpak 里这会在�
 | `--socket=pulseaudio` | 音频和语音 |
 | `--device=dri` | GPU 加速 |
 | `--filesystem=home` | 读写用户目录,供 Codex 处理本地项目 |
+| `--talk-name=org.freedesktop.Flatpak` | 通过 `flatpak-spawn --host` 使用宿主工具 |
 | `--talk-name=org.freedesktop.Notifications`、`org.kde.StatusNotifierWatcher` | 通知、托盘图标 |
 | `--talk-name=org.freedesktop.secrets`、`org.kde.kwalletd5`、`org.kde.kwalletd6` | Electron `safeStorage` 使用的密钥环 |
 
-想只开放一个项目目录,可以用 [Flatseal](https://flathub.org/apps/com.github.tchx84.Flatseal) 或命令行:
+想收紧权限,可以用 [Flatseal](https://flathub.org/apps/com.github.tchx84.Flatseal) 或命令行:
 
 ```bash
+# 只开放一个项目目录,不开放整个 $HOME
 flatpak override --user --nofilesystem=home --filesystem=~/Projects com.openai.chatgpt
+
+# 禁止在宿主系统执行命令
+flatpak override --user --no-talk-name=org.freedesktop.Flatpak com.openai.chatgpt
 ```
 
 用 `flatpak override --user --reset com.openai.chatgpt` 撤销所有覆盖。
@@ -151,7 +159,7 @@ flatpak override --user --nofilesystem=home --filesystem=~/Projects com.openai.c
 
 - **仅 x86_64。** OpenAI 只发布 x86_64 的 RPM。
 - **Codex 的文件系统沙箱不生效。** 见 [Codex 在 Flatpak 中如何运行](#codex-在-flatpak-中如何运行)。网络限制仍然有效。
-- **沙箱里的开发工具很少。** Codex 只能用 freedesktop Runtime 里的程序:有 `python3` 和 `curl`,没有 `git`、`node`、`gcc`、`make`,宿主系统的程序也不在 `PATH` 上。如果希望 Codex 使用宿主工具,可以执行 `flatpak override --user --talk-name=org.freedesktop.Flatpak com.openai.chatgpt`,再通过 `flatpak-spawn --host` 调用。这样应用就拥有了你在宿主系统上的全部用户权限。
+- **宿主工具要通过 `flatpak-spawn --host` 调用。** Runtime 里有 `python3` 和 `curl`,没有 `git`、`node`、`gcc`、`make`,宿主系统的程序也不在 `PATH` 上。Codex 需要写成 `flatpak-spawn --host git ...`,在 `~/.codex/AGENTS.md` 里写明这一点会有帮助。这只在任务有网络权限或完全访问权限时可用:Codex 默认的受限网络模式下,seccomp 也会拦住 `flatpak-spawn` 需要的 D-Bus 连接。
 - **上游新版本可能让补丁失效。** 如果 OpenAI 改动了两处检查附近的代码,`patch-codex.py` 会让构建失败,软件源停在上一个版本,直到补丁模式更新。
 - **离线包的 Runtime 不会自动安装。** 安装前需要启用 Flathub。
 
