@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>ChatGPT for Linux (Flatpak)</title>
+  <meta name="description" content="OpenAI 官方 ChatGPT Linux 桌面客户端的 Flatpak 打包与软件源,从官方 YUM 源构建,自动跟进上游版本。">
+  <link rel="icon" type="image/png" href="icons/com.openai.chatgpt.png">
+  <link rel="alternate" hreflang="en" href="./">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="container nav">
+      <a class="brand" href="#">
+        <img src="icons/com.openai.chatgpt.png" alt="">
+        <span>ChatGPT Flatpak</span>
+      </a>
+      <nav class="nav-links">
+        <a href="#install">安装</a>
+        <a href="#codex" class="hide-sm">Codex</a>
+        <a href="#permissions">权限</a>
+        <a href="#limits" class="hide-sm">限制</a>
+        <a href="https://github.com/jhuang6451/chatgpt-flatpak" rel="noopener">GitHub</a>
+        <a href="./" hreflang="en" lang="en">English</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container">
+        <img class="hero-icon" src="icons/com.openai.chatgpt.png" alt="">
+        <p class="eyebrow">非官方 Flatpak 打包</p>
+        <h1>在任何支持 Flatpak 的 Linux 上使用 ChatGPT 和 Codex</h1>
+        <p class="lead">OpenAI 只提供 RPM 格式的 ChatGPT Linux 客户端。这个项目把它重新打成 Flatpak,放进一个自动更新、带签名的软件源,让 Fedora Atomic、Bazzite、SteamOS、Debian、Ubuntu 等系统也能直接安装。</p>
+        <div class="actions">
+          <a href="chatgpt.flatpakref" class="btn btn-primary" download>下载 .flatpakref</a>
+          <a href="#install" class="btn btn-secondary">用命令行安装</a>
+          <a href="https://github.com/jhuang6451/chatgpt-flatpak/releases/latest" class="btn btn-secondary" rel="noopener">离线包</a>
+        </div>
+        <p class="note">仅提供 x86_64。本项目与 OpenAI 没有隶属关系。</p>
+      </div>
+    </section>
+
+    <section id="install" class="block">
+      <div class="container">
+        <h2>安装</h2>
+        <p>添加软件源后,ChatGPT 会随 <code>flatpak update</code> 一起更新。</p>
+
+        <div class="code-box">
+          <div class="code-head">
+            <span>shell</span>
+            <button class="copy-btn" type="button" data-done="已复制">复制</button>
+          </div>
+          <pre><code>flatpak remote-add --if-not-exists chatgpt https://jhuang6451.github.io/chatgpt-flatpak/chatgpt.flatpakrepo
+flatpak install chatgpt com.openai.chatgpt
+flatpak run com.openai.chatgpt</code></pre>
+        </div>
+
+        <p>应用的 Runtime 来自 Flathub。如果系统还没有启用 Flathub,先执行 <code>flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo</code>。用 <code>.flatpakref</code> 安装时,Flathub 的地址已经包含在文件里。</p>
+
+        <div class="callout">
+          <p>软件源已用 GPG 签名,<code>.flatpakrepo</code> 和 <code>.flatpakref</code> 内嵌了公钥,Flatpak 会自动校验。签名密钥指纹:<code>5F01 B1FD 3DD6 D620 2FA9 0276 B82A 2266 6F3D EC39</code>。如果你在启用签名之前添加过 <code>chatgpt</code> 软件源,请先执行 <code>flatpak remote-delete chatgpt</code> 再重新添加。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="container">
+        <h2>打包内容</h2>
+        <p>构建时从 OpenAI 的 YUM 源下载 RPM,核对清单里记录的 SHA-256,再解包。对上游代码唯一的改动是自带 <code>codex</code> 二进制里的两处补丁,下文有说明。</p>
+        <div class="features">
+          <div class="feature">
+            <h3>官方来源</h3>
+            <p>下载地址和哈希写在清单中,每次版本变化都会随提交更新,可以在仓库里逐条核对。</p>
+          </div>
+          <div class="feature">
+            <h3>自动跟进</h3>
+            <p>GitHub Actions 每 6 小时读取一次 OpenAI 的软件源索引,发现新版本就更新清单、构建并发布。</p>
+          </div>
+          <div class="feature">
+            <h3>Codex 命令</h3>
+            <p>Codex 能在 Flatpak 里执行 shell 命令。每次构建后,持续集成都会通过 Codex 沙箱实际运行一条命令。</p>
+          </div>
+          <div class="feature">
+            <h3>Wayland 与密钥环</h3>
+            <p>Wayland 会话自动启用 Ozone 和窗口装饰。登录状态保存在 GNOME Keyring 或 KDE Wallet 中。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="codex" class="block">
+      <div class="container">
+        <h2>Codex 在 Flatpak 中如何运行</h2>
+        <p>Codex 通过 bubblewrap 执行每条命令。Flatpak 本身就是 bubblewrap 沙箱,禁止嵌套 user namespace;Codex 还会因为 Flatpak 的 <code>/run/.userns</code> 挂载报 <code>mountinfo path is not absolute</code>。构建分三步处理:</p>
+        <ol class="steps">
+          <li><strong>修补两处检查。</strong><code>patch-codex.py</code> 关闭挂载根检查和对自带 bubblewrap 的 SHA-256 校验。每个补丁必须恰好匹配一处,否则构建失败。</li>
+          <li><strong>用垫片替代 bubblewrap。</strong><code>bwrap_shim.c</code> 处理 <code>--chdir</code>、<code>--setenv</code> 等参数,忽略挂载和命名空间参数,然后执行命令。</li>
+          <li><strong>每次构建都检查。</strong>持续集成在构建好的包里运行 <code>codex sandbox</code>,如果再次出现被修补的错误,构建失败。</li>
+        </ol>
+        <div class="callout">
+          <p>垫片不创建沙箱,Codex 的文件系统限制不生效:即使在只读模式下,命令也能写入用户目录的任何位置。网络限制仍然有效,因为 Codex 用 seccomp 实现它。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="permissions" class="block">
+      <div class="container">
+        <h2>权限</h2>
+        <p>ChatGPT 和 Codex 执行的每条命令都能读写整个用户目录。应用不能在宿主系统上执行命令。</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>权限</th><th>用途</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>--filesystem=home</code></td><td>读写用户目录,供 Codex 处理本地项目</td></tr>
+              <tr><td><code>--share=network</code></td><td>访问 ChatGPT 和 Codex 服务</td></tr>
+              <tr><td><code>--device=dri</code></td><td>GPU 加速</td></tr>
+              <tr><td>Wayland、X11、PulseAudio</td><td>显示、音频和语音</td></tr>
+              <tr><td>通知、托盘、密钥环</td><td>桌面集成与登录状态保存</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="margin-top: 20px;">想只开放一个项目目录,可以用 Flatseal 或下面的命令:</p>
+        <div class="code-box">
+          <div class="code-head">
+            <span>shell</span>
+            <button class="copy-btn" type="button" data-done="已复制">复制</button>
+          </div>
+          <pre><code>flatpak override --user --nofilesystem=home --filesystem=~/Projects com.openai.chatgpt</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section id="limits" class="block">
+      <div class="container">
+        <h2>已知限制</h2>
+        <ul class="plain">
+          <li><strong>仅 x86_64。</strong>OpenAI 只发布 x86_64 的 RPM。</li>
+          <li><strong>Codex 的文件系统沙箱不生效。</strong>网络限制仍然有效。</li>
+          <li><strong>沙箱里的开发工具很少。</strong>Runtime 里有 <code>python3</code> 和 <code>curl</code>,没有 <code>git</code>、<code>node</code>、<code>gcc</code>、<code>make</code>。要使用宿主工具,可以授予 <code>--talk-name=org.freedesktop.Flatpak</code> 并通过 <code>flatpak-spawn --host</code> 调用,这样应用会拥有你账户的全部权限。</li>
+          <li><strong>上游新版本可能让补丁失效。</strong>这时构建会失败,软件源停在上一个版本,直到补丁模式更新。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="container">
+        <h2>更新方式</h2>
+        <p>每次发布都从空仓库重新构建,软件源只保留最新提交。OSTree 按内容寻址,客户端只下载本地缺少的对象,但没有从旧版本出发的增量包。</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>ChatGPT、Codex 和 OpenAI 标志是 OpenAI 的商标,ChatGPT 桌面客户端是 OpenAI 的专有软件。本项目是独立的社区项目,与 OpenAI 没有隶属关系,也未获其背书。</p>
+      <p>打包脚本以 MIT 许可证发布 · <a href="https://github.com/jhuang6451/chatgpt-flatpak" rel="noopener">源代码</a></p>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      if (!navigator.clipboard) return;
+      document.querySelectorAll('.code-box').forEach(function (box) {
+        var btn = box.querySelector('.copy-btn');
+        var code = box.querySelector('pre code');
+        if (!btn || !code) return;
+        var label = btn.textContent;
+        btn.addEventListener('click', function () {
+          navigator.clipboard.writeText(code.innerText).then(function () {
+            btn.textContent = btn.getAttribute('data-done') || 'Copied';
+            setTimeout(function () { btn.textContent = label; }, 2000);
+          });
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

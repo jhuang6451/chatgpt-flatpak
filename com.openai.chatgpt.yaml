@@ -83,12 +83,10 @@ modules:
       - python3 patch-codex.py /app/lib/chatgpt/resources/codex
 
       # 7. 编译安装 Flatpak 环境下的 bwrap 适配垫片
+      #    Codex 实际执行命令用的是 codex-resources/bwrap（内置副本，受摘要校验）；
+      #    /app/bin/bwrap 只会被 `bwrap --help` 探测一次，保留它可避免“PATH 中找不到 bubblewrap”的回退提示。
       - gcc -O2 bwrap_shim.c -o /app/bin/bwrap
-      - chmod +x /app/bin/bwrap
-      - mkdir -p /app/lib/chatgpt/resources/codex-resources
-      - cp /app/bin/bwrap /app/lib/chatgpt/resources/codex-resources/bwrap
-      - cp /app/bin/bwrap /app/lib/chatgpt/resources/bwrap
-      - chmod +x /app/lib/chatgpt/resources/codex-resources/bwrap /app/lib/chatgpt/resources/bwrap
+      - install -Dm755 /app/bin/bwrap /app/lib/chatgpt/resources/codex-resources/bwrap
 
     sources:
       - type: archive

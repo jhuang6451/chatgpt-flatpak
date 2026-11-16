@@ -1,175 +1,178 @@
-# ChatGPT Flatpak (WIP)
-
-> [!WARNING]
-> **Work in progress.** This repository is being reworked. Codex command execution may not work in recent builds, and the OSTree repository is not GPG-signed yet. See [TODO.md](TODO.md) for the full list.
->
-> **开发中。** 本仓库正在整改：近期版本中 Codex 执行命令可能不可用，软件源尚未 GPG 签名。完整问题清单见 [TODO.md](TODO.md)。
-
 <div align="center">
-  <img src="icons/hicolor/128x128/apps/com.openai.chatgpt.png" alt="ChatGPT Logo" width="96" height="96" />
-  <h3>OpenAI ChatGPT Linux Client — 生产级 Flatpak 打包与全自动更新项目</h3>
+  <img src="icons/hicolor/128x128/apps/com.openai.chatgpt.png" alt="ChatGPT" width="88" height="88" />
+
+  <h1>ChatGPT for Linux (Flatpak)</h1>
+
+  <p>Flatpak packaging and a software repository for OpenAI's official ChatGPT Linux desktop client.</p>
+
   <p>
-    <a href="https://github.com/jhuang6451/chatgpt-flatpak/actions/workflows/build-and-deploy.yml"><img src="https://img.shields.io/github/actions/workflow/status/jhuang6451/chatgpt-flatpak/build-and-deploy.yml?branch=master&label=Build%20%26%20Deploy&logo=github-actions&logoColor=white" alt="Build Status" /></a>
-    <a href="https://github.com/jhuang6451/chatgpt-flatpak/actions/workflows/check-update.yml"><img src="https://img.shields.io/github/actions/workflow/status/jhuang6451/chatgpt-flatpak/check-update.yml?branch=master&label=Auto%20Updater&logo=openai&logoColor=white" alt="Update Checker" /></a>
-    <a href="https://github.com/jhuang6451/chatgpt-flatpak/releases/latest"><img src="https://img.shields.io/github/v/release/jhuang6451/chatgpt-flatpak?label=Latest%20Release&color=10a37f" alt="Latest Version" /></a>
-    <img src="https://img.shields.io/badge/Flatpak-v25.08-blue?logo=flatpak&logoColor=white" alt="Flatpak Runtime" />
-    <img src="https://img.shields.io/badge/Architecture-x86__64-brightgreen" alt="Architecture" />
-    <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green" alt="License" /></a>
+    <a href="https://github.com/jhuang6451/chatgpt-flatpak/actions/workflows/build-and-deploy.yml"><img src="https://img.shields.io/github/actions/workflow/status/jhuang6451/chatgpt-flatpak/build-and-deploy.yml?branch=master&label=build&labelColor=0d0d0d&color=10a37f" alt="Build status" /></a>
+    <a href="https://github.com/jhuang6451/chatgpt-flatpak/actions/workflows/check-update.yml"><img src="https://img.shields.io/github/actions/workflow/status/jhuang6451/chatgpt-flatpak/check-update.yml?branch=master&label=upstream%20check&labelColor=0d0d0d&color=10a37f" alt="Upstream check status" /></a>
+    <a href="https://github.com/jhuang6451/chatgpt-flatpak/releases/latest"><img src="https://img.shields.io/github/v/release/jhuang6451/chatgpt-flatpak?label=release&labelColor=0d0d0d&color=10a37f" alt="Latest release" /></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-10a37f?labelColor=0d0d0d" alt="License" /></a>
   </p>
+
+  <p>English · <a href="README.zh-CN.md">简体中文</a></p>
+
   <p>
-    <b><a href="https://jhuang6451.github.io/chatgpt-flatpak/">🌐 在线仓库主页与一键安装</a></b>
+    <a href="https://jhuang6451.github.io/chatgpt-flatpak/">Website</a> ·
+    <a href="https://github.com/jhuang6451/chatgpt-flatpak/releases/latest">Offline bundle</a> ·
+    <a href="#known-limitations">Known limitations</a>
   </p>
 </div>
 
----
+## Overview
 
-## 📖 项目简介 (Overview)
+OpenAI ships its ChatGPT Linux client, which includes the Codex coding agent, only as an RPM package. This project repackages that RPM as a Flatpak and hosts an OSTree repository, so systems where installing an RPM is awkward (Fedora Atomic, Bazzite, SteamOS, Debian and Ubuntu) can use `flatpak install` and get updates the usual way.
 
-本仓库提供 OpenAI 官方 Linux 桌面客户端 **ChatGPT** 的生产级 Flatpak 打包方案。
+The build downloads the RPM from OpenAI's YUM repository, checks its SHA-256, and unpacks it. Unlike a plain repackage, it also changes the bundled `codex` binary so that Codex can run commands inside Flatpak. [How Codex runs inside Flatpak](#how-codex-runs-inside-flatpak) explains what is changed and what that costs.
 
-针对主流 Linux 系统（Fedora Silverblue/Atomic、Ubuntu、Debian、Arch Linux、openSUSE、SteamOS 等），本项目实现了：
-1. **完整修复 Codex Agent 命令执行**：内置轻量级兼容垫片与挂载表适配，彻底攻克 Flatpak 内部运行 Codex 时的 `mountinfo path is not absolute` 与 `bwrap` 嵌套冲突。
-2. **读写权限无缝互通**：精细配置 `~/Documents`、`~/Downloads` 与用户目录的读写互通（修复官方规则中 xdg-documents 覆盖引起的只读问题）。
-3. **一键安装与全自动更新**：配置专有 OSTree 仓库，GitHub Actions 每 6 小时监控 OpenAI 官方 YUM 软件源，新版发布时自动构建增量镜像并发布。
-4. **Wayland 与原生环境优化**：自适应 Wayland / X11 显示通道，支持自定义启动参数文件 `~/.config/chatgpt-flags.conf`。
+- The package comes from OpenAI's official YUM repository. The manifest pins the download URL and SHA-256.
+- Two checks in the `codex` binary are patched, and a small `bwrap` shim replaces bubblewrap. CI runs a command through the Codex sandbox after every build.
+- The launcher detects Wayland and enables the matching Ozone flags. A config file can add more Electron flags.
+- Login state is stored in GNOME Keyring or KDE Wallet.
+- GitHub Actions checks upstream every 6 hours. When a new version appears, it updates the manifest, builds, and publishes.
 
----
+Only **x86_64** is built and published, because OpenAI publishes only x86_64 RPMs.
 
-## 🚀 快速安装 (Quick Start)
+## Installation
 
-### 方式 1：添加仓库一键安装（推荐，支持全自动日常更新）
-
-直接在终端执行以下命令：
+### From the repository (recommended)
 
 ```bash
-# 1. 添加 ChatGPT 软件源仓库
 flatpak remote-add --if-not-exists chatgpt https://jhuang6451.github.io/chatgpt-flatpak/chatgpt.flatpakrepo
-
-# 2. 安装 ChatGPT 客户端
-flatpak install -y chatgpt com.openai.chatgpt
-
-# 3. 运行应用
+flatpak install chatgpt com.openai.chatgpt
 flatpak run com.openai.chatgpt
 ```
 
-安装完成后，可以在桌面启动器（GNOME、KDE Plasma、XFCE 等）的应用列表中直接找到 **ChatGPT** 点击运行。
-
----
-
-### 方式 2：使用 `.flatpakref` 单文件图形化安装
-
-1. 访问在线页面 [https://jhuang6451.github.io/chatgpt-flatpak/](https://jhuang6451.github.io/chatgpt-flatpak/) 点击 **一键安装** 按钮，或在 [Releases](https://github.com/jhuang6451/chatgpt-flatpak/releases/latest) 下载 `chatgpt.flatpakref`。
-2. 双击通过系统应用商店（GNOME Software 或 KDE Discover）一键安装，或在终端执行：
-   ```bash
-   flatpak install chatgpt.flatpakref
-   ```
-
----
-
-### 方式 3：离线单文件 Bundle 安装
-
-对于无外网或特定局域网环境，可直接前往 [Releases 页面](https://github.com/jhuang6451/chatgpt-flatpak/releases/latest) 下载打包好的 `com.openai.chatgpt.flatpak` 单文件安装包：
+Once the remote is added, `flatpak update` updates ChatGPT along with your other apps. The runtime comes from Flathub, so add Flathub first if it isn't enabled:
 
 ```bash
-flatpak install com.openai.chatgpt.flatpak
+flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 ```
 
----
+### From a `.flatpakref`
 
-## 🔄 软件日常更新 (Updates)
+Download [chatgpt.flatpakref](https://jhuang6451.github.io/chatgpt-flatpak/chatgpt.flatpakref) and open it with GNOME Software or KDE Discover. The file includes the Flathub URL, so the runtime is installed too.
 
-由于配置了官方标准 Flatpak 仓库，后续所有的版本迭代均可跟随系统更新或执行单条指令完成：
+### From the offline bundle
+
+Download `com.openai.chatgpt.flatpak` from [Releases](https://github.com/jhuang6451/chatgpt-flatpak/releases/latest):
 
 ```bash
-# 更新 ChatGPT 到最新版
-flatpak update com.openai.chatgpt
-
-# 或随系统所有 Flatpak 应用批量更新
-flatpak update
+flatpak install --user com.openai.chatgpt.flatpak
 ```
 
----
+The bundle doesn't update itself. To upgrade, download a new one.
 
-## 🛠️ 关键技术攻关与沙箱适配 (Technical Highlights)
+### Repository signing
 
-ChatGPT 客户端内置了用于本地执行任务与分析工程的 **Codex CLI / app-server**。在 Flatpak 环境中，原生客户端会因为两层嵌套沙箱而导致命令通道全面瘫痪。本项目进行了以下底层工程化适配：
+Commits, appstream branches, and the summary file are signed with GPG. `chatgpt.flatpakrepo` and `chatgpt.flatpakref` embed the public key and set `gpg-verify=true`, so Flatpak verifies signatures after download. The signing key fingerprint is:
 
-```mermaid
-flowchart TD
-    subgraph Host["宿主机 (Host System)"]
-        FlatpakHost["flatpak run com.openai.chatgpt"]
-    end
-
-    subgraph FlatpakSandbox["Flatpak 沙箱层 (/usr/bin/bwrap)"]
-        Electron["ChatGPT Electron GUI"] --> Codex["resources/codex (app-server)"]
-        
-        subgraph CodexExecution["Codex 执行层"]
-            Patch1["挂载根绝对路径检查修补<br/>(消除 nsfs /run/.userns 报错)"]
-            Patch2["bwrap SHA-256 摘要校验放行"]
-            Shim["/app/bin/bwrap 兼容转发垫片<br/>(剥离嵌套沙箱参数，直接执行命令)"]
-        end
-        
-        Codex --> Patch1
-        Patch1 --> Patch2
-        Patch2 --> Shim
-        Shim --> ShellCmd["Shell 命令 / 编译器 / 运行环境"]
-    end
-
-    FlatpakHost --> FlatpakSandbox
+```text
+5F01 B1FD 3DD6 D620 2FA9 0276 B82A 2266 6F3D EC39
 ```
 
-1. **消除挂载根非绝对路径报错 (`mountinfo path is not absolute`)**：
-   * *根因*：Codex 在 `daemon_mounts.rs` 中解析 `/proc/self/mountinfo` 检查挂载点，要求所有挂载根以 `/` 开头。而 Flatpak 内置用于跟踪用户命名空间的锚点挂载为 `user:[<inode>] /run/.userns nsfs`，导致其在启动沙箱阶段立即返回错误。
-   * *解决*：通过 `scripts/patch-codex.py` 精准修补条件跳转，安全放行非 `/` 开头的 nsfs 挂载点。
-2. **解决嵌套 User Namespace 限制与摘要校验**：
-   * *根因*：Flatpak 自身已处于 bubblewrap 沙箱中，默认 seccomp 阻止二次创建 unprivileged user namespace（`CLONE_NEWUSER`）。同时 Codex 对内置的 `bwrap` 实施了硬编码的 SHA-256 完整性检查。
-   * *解决*：构建原生 ELF C 语言垫片（`bwrap_shim.c`），解析 `--argv0 codex-linux-sandbox`，剥离二层嵌套参数并透明移交命令至 Flatpak 容器内部直接执行；并在二进制中无条件放行该垫片。
-3. **Documents 读写权限恢复**：
-   * 清单中规范声明 `--filesystem=xdg-documents` 与 `--filesystem=home`，确保 Codex 对 `~/Documents/Codex` 项目工作区具备完整的创建、读写与修改权限。
-
----
-
-## ⚙️ 自动化流水线架构 (Automation Architecture)
-
-本项目采用全自动化生产级 CI/CD 流水线，实现了免人工维护的端到端持续交付：
-
-```mermaid
-flowchart TD
-    A["OpenAI 官方 RPM YUM 源<br/>(repodata/repomd.xml)"] -->|每 6 小时轮询| B["GitHub Actions: check-update.yml"]
-    B -->|发现新版本| C["解析 primary.xml.gz 提取元数据与 SHA256"]
-    C -->|自动修改| D["com.openai.chatgpt.yaml<br/>com.openai.chatgpt.metainfo.xml"]
-    D -->|Git Push| E["Master 分支触发流水线"]
-    E --> F["GitHub Actions: build-and-deploy.yml"]
-    F -->|Flatpak Builder 构建| G["编译并生成 OSTree 镜像与 Bundle"]
-    G -->|构建优化| H["flatpak build-update-repo<br/>(生成 Static Deltas 增量分发)"]
-    H -->|发布网页与软件源| I["GitHub Pages (gh-pages 分支)"]
-    H -->|发布 Release| J["GitHub Releases (自动上传 Bundle & Ref)"]
-```
-
----
-
-## 💻 本地构建与调试 (Local Development)
-
-如需在本地测试修改或自行构建：
+If you added the `chatgpt` remote before signing was enabled, your old configuration has no public key and updates will fail. Remove the remote and add it again:
 
 ```bash
-# 1. 克隆本仓库
+flatpak remote-delete chatgpt
+flatpak remote-add chatgpt https://jhuang6451.github.io/chatgpt-flatpak/chatgpt.flatpakrepo
+```
+
+The offline bundle is not covered by this verification, so download it only from this repository's Releases page.
+
+## Usage
+
+### Launch flags
+
+The launcher reads extra flags from the file below, one flag per line. Blank lines and lines starting with `#` are ignored.
+
+```text
+~/.var/app/com.openai.chatgpt/config/chatgpt-flags.conf
+```
+
+Inside the sandbox this path is `$XDG_CONFIG_HOME`, not `~/.config`. For example, to force X11:
+
+```text
+--ozone-platform=x11
+```
+
+On Wayland sessions the launcher adds `--ozone-platform-hint=auto` and `--enable-features=WaylandWindowDecorations` by default. If your config file also sets `--enable-features=...`, the launcher merges it with the defaults, so you don't need to repeat `WaylandWindowDecorations`.
+
+The launcher also sets `TMPDIR` to `~/.var/app/com.openai.chatgpt/cache/tmp`.
+
+### Where data lives
+
+`$HOME` inside the sandbox is your real home directory, so Codex reads and writes the same `~/.codex` as a Codex CLI installed on the host. The Electron profile (cookies, local storage, caches) is kept in `~/.var/app/com.openai.chatgpt/config/Codex`.
+
+## How Codex runs inside Flatpak
+
+Codex runs each shell command through bubblewrap. Inside Flatpak that fails in two ways:
+
+1. While building the bubblewrap command, Codex reads `/proc/self/mountinfo` and requires every mount root to be an absolute path. Flatpak has an nsfs mount at `/run/.userns` whose root is `user:[<inode>]`, so Codex stops with `mountinfo path is not absolute`.
+2. Flatpak is already a bubblewrap sandbox, and its seccomp filter blocks unprivileged user namespaces, so a nested bubblewrap can't start.
+
+The build works around both:
+
+- `scripts/patch-codex.py` turns the mount-root check into NOPs and disables the SHA-256 check that Codex runs on its bundled bubblewrap. Each patch must match exactly one location next to code that references the matching error message. If upstream changes the code, the build fails instead of patching the wrong place.
+- `bwrap_shim.c` is installed as `resources/codex-resources/bwrap`, which is the copy Codex executes. It handles `--argv0`, `--chdir`, `--die-with-parent`, `--setenv`, `--unsetenv`, and `--clearenv`, ignores every mount and namespace option, and runs the command. A second copy at `/app/bin/bwrap` is there because Codex probes `bwrap --help` on `PATH` before falling back to the bundled copy.
+- `scripts/verify-codex-sandbox.sh` runs `codex sandbox -- sh -c 'echo ...'` in the built package during CI. The build fails if Codex reports either of the patched errors.
+
+The shim does not create a sandbox, so Codex's filesystem restrictions are not enforced. In read-only or workspace-write mode, a command can still write anywhere the Flatpak can, which includes your whole home directory. Network restriction still works: Codex applies it with seccomp in `codex-linux-sandbox`, and in testing, DNS lookups and direct TCP connections from a restricted command failed. To give a task network access, raise its permissions in the app.
+
+## Permissions and security
+
+The manifest grants `--filesystem=home`, so ChatGPT and every command Codex runs can read and write your whole home directory, including dotfiles such as `~/.ssh`. Because the bubblewrap shim doesn't isolate anything, Codex's own sandbox modes don't narrow that. The app has no `org.freedesktop.Flatpak` permission, so it can't run commands on the host.
+
+The full permission list:
+
+| Permission | Purpose |
+| --- | --- |
+| `--socket=wayland`, `--socket=fallback-x11`, `--share=ipc` | Display |
+| `--share=network` | ChatGPT and Codex services |
+| `--socket=pulseaudio` | Audio and voice |
+| `--device=dri` | GPU acceleration |
+| `--filesystem=home` | Read and write the home directory, so Codex can work on local projects |
+| `--talk-name=org.freedesktop.Notifications`, `org.kde.StatusNotifierWatcher` | Notifications, tray icon |
+| `--talk-name=org.freedesktop.secrets`, `org.kde.kwalletd5`, `org.kde.kwalletd6` | Keyring for Electron `safeStorage` |
+
+To limit access to one project directory, use [Flatseal](https://flathub.org/apps/com.github.tchx84.Flatseal) or the command line:
+
+```bash
+flatpak override --user --nofilesystem=home --filesystem=~/Projects com.openai.chatgpt
+```
+
+Undo all overrides with `flatpak override --user --reset com.openai.chatgpt`.
+
+## Known limitations
+
+- **x86_64 only.** OpenAI publishes only x86_64 RPMs.
+- **Codex filesystem sandboxing is not enforced.** See [How Codex runs inside Flatpak](#how-codex-runs-inside-flatpak). Network restriction still works.
+- **Few developer tools inside the sandbox.** Codex sees only the freedesktop runtime: `python3` and `curl` are there, `git`, `node`, `gcc`, and `make` are not, and host programs are not on `PATH`. If you want Codex to use host tools, grant `flatpak override --user --talk-name=org.freedesktop.Flatpak com.openai.chatgpt` and run them through `flatpak-spawn --host`. That gives the app full access to your user account on the host.
+- **New upstream versions can break the patches.** If OpenAI changes the code around either check, `patch-codex.py` stops the build and the repository stays on the previous version until the patterns are updated.
+- **The offline bundle doesn't install the runtime.** Enable Flathub before installing it.
+
+## Building locally
+
+You need `flatpak` and `flatpak-builder`. The script installs `org.flatpak.Builder` if `flatpak-builder` is missing.
+
+```bash
 git clone https://github.com/jhuang6451/chatgpt-flatpak.git
 cd chatgpt-flatpak
-
-# 2. 一键本地构建、生成仓库与 Bundle
 ./scripts/build-local.sh
-
-# 3. 安装本地构建的单文件包进行测试
-flatpak install --user --bundle com.openai.chatgpt.flatpak
-
-# 4. 运行
-flatpak run com.openai.chatgpt
 ```
 
----
+The script installs the required runtimes, builds, exports the result to a local `repo/` directory, and writes `com.openai.chatgpt.flatpak`. After installing it, `scripts/verify-codex-sandbox.sh` checks that Codex can run commands.
 
-## 📄 许可证与声明 (License & Disclaimer)
+## Automatic updates
 
-* 本打包工程与辅助脚本采用 [MIT 许可证](LICENSE) 开源。
-* **商标与所有权声明**：ChatGPT、Codex 及其商标、图标与专有软件包的所有权归 OpenAI 所有。本项目为第三方社区独立发起的 Flatpak 打包与自动化维护工程，与 OpenAI 官方无商业附属关系。
+1. `check-update.yml` runs `scripts/update-checker.py` every 6 hours. It reads `repomd.xml` and `primary.xml.gz` from OpenAI's YUM repository.
+2. When there is a new version, the script updates the download URL and hash in `com.openai.chatgpt.yaml`, adds a release entry to `com.openai.chatgpt.metainfo.xml`, and commits to `master`.
+3. The commit triggers `build-and-deploy.yml`, which builds the Flatpak, checks the Codex sandbox, signs the repository, creates a GitHub Release, and publishes the OSTree repository and the website through GitHub Pages.
+
+Each release is built from an empty repository, so the remote holds only the latest commit. OSTree addresses files by content, and clients download only the objects they don't already have. The repository keeps no history and offers no deltas from older versions.
+
+## License and trademarks
+
+The packaging scripts and configuration are released under the [MIT License](LICENSE). ChatGPT, Codex, and the OpenAI logo are trademarks of OpenAI, and the ChatGPT desktop client is OpenAI's proprietary software. This project is not affiliated with or endorsed by OpenAI.

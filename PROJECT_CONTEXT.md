@@ -1,273 +1,81 @@
-# OpenAI ChatGPT Linux 客户端 Flatpak 打包工程完整上下文 (Session 迁移存档)
+# OpenAI ChatGPT Linux client: Flatpak packaging context
 
-> **关联原始会话**: [ChatGPT 打包全流程记录](conversation://60352bf5-a979-4fbe-9b25-7d0a5d0ec82e)  
-> **归档与更新时间**: 2026-10-21 (同步更新至 26.1016.51333-1)  
-> **维护工程目录**: `/var/home/jhuang/Workspace/flatpak-chatgpt`
+English · [简体中文](PROJECT_CONTEXT.zh-CN.md)
 
----
+> **Last updated**: 2026-11-15 (synced to 26.1111.21308, Codex CLI 0.169.0-alpha.11.1)
+> **GitHub repository**: `https://github.com/jhuang6451/chatgpt-flatpak`
+> **Pages site and software repository**: `https://jhuang6451.github.io/chatgpt-flatpak/`
 
-## 1. 软件源与上游规格信息
-
-* **官方 RPM 下载地址**: `https://persistent.oaistatic.com/codex-app-prod/linux/rpm/latest/chatgpt.x86_64.rpm`
-* **软件包规格**:
-  * 包名: `chatgpt-26.1016.51333-1.x86_64`
-  * 类型: 基于 Electron / Chromium 的 Codex Desktop Client
-  * 压缩体积: 558.6 MiB
-  * 解压后体积: ~1.73 GiB
-  * 官方构建日期: 2026-10-21 07:28:27 UTC
-  * 官方 RPM SHA-256: `370ad1be76ce518d7c103df4cb694ad83a3dad4b18ba4d8ead27fe0ba7fd3c0d`
-* **上游包内目录结构**:
-  * 核心应用: `/usr/lib/chatgpt/ChatGPT`（ELF 主程序）、`/usr/lib/chatgpt/codex-launcher`
-  * 快捷方式: `/usr/share/applications/chatgpt.desktop`
-  * 图标文件: `/usr/share/pixmaps/chatgpt.png`（实际分辨率为 1024×1024）
-  * AppStream 元数据: `/usr/share/metainfo/com.openai.chatgpt.metainfo.xml`
-  * 官方 YUM 软件源: `/etc/yum.repos.d/chatgpt.repo` (源地址: `https://persistent.oaistatic.com/codex-app-prod/linux/rpm/$basearch`)
+The manifest (`com.openai.chatgpt.yaml`) is the source of truth for build steps and permissions. This file records why things are the way they are.
 
 ---
 
-## 2. Flatpak 规范与关键架构决策
+## 1. Upstream source
 
-### 2.1 基座与沙盒选型
+* **Official YUM repository**: `https://persistent.oaistatic.com/codex-app-prod/linux/rpm/x86_64`
+  * Index: `repodata/repomd.xml`, which points to `primary.xml.gz` with versions and SHA-256 hashes.
+  * Packages: `chatgpt-<version>-<release>.x86_64.rpm`. Only x86_64 is published.
+* **Layout of the official RPM**:
+  * Main binary: `/usr/lib/chatgpt/ChatGPT` (Electron)
+  * Codex app server and CLI: `/usr/lib/chatgpt/resources/codex` (Rust, statically linked)
+  * Bundled bubblewrap: `/usr/lib/chatgpt/resources/codex-resources/bwrap`
+  * Icon: `/usr/share/pixmaps/chatgpt.png`, 1024x1024. Flatpak rejects icons over 512x512, so the repository ships pre-scaled icons in `icons/hicolor/`.
+* `flatpak-builder` strips the first path component of archive sources, so the manifest looks for the files under both `extracted/usr/lib/chatgpt` and `extracted/lib/chatgpt`.
+
+---
+
+## 2. Flatpak decisions
+
+### 2.1 Base and sandbox
 * **App ID**: `com.openai.chatgpt`
-* **Runtime**: `org.freedesktop.Platform//26.08`
-* **SDK**: `org.freedesktop.Sdk//26.08`
-* **BaseApp**: `org.electronjs.Electron2.BaseApp//26.08`
-  * **选型原因**: Chromium / Electron 原生依赖 Linux User Namespaces 沙盒，在 Flatpak 内部无法直接二层嵌套。必须使用 `Electron2.BaseApp` 内置的 `zypak-wrapper` 进行沙盒转发。
+* **Runtime**: `org.freedesktop.Platform//25.08`
+* **SDK**: `org.freedesktop.Sdk//25.08`
+* **BaseApp**: `org.electronjs.Electron2.BaseApp//25.08`
+* **Why**: it matches Flathub and the CI container image (`ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08`). Electron needs unprivileged user namespaces for its own sandbox, and `zypak-wrapper` from the BaseApp forwards that to the host.
 
-### 2.2 启动包装器 (`/app/bin/chatgpt`)
-```bash
-#!/bin/sh
-exec zypak-wrapper /app/lib/chatgpt/ChatGPT "$@"
-```
+### 2.2 Launcher (`chatgpt.sh`, installed as `/app/bin/chatgpt`)
+* On Wayland adds `--ozone-platform-hint=auto` and the `WaylandWindowDecorations` feature.
+* Reads extra flags from `$XDG_CONFIG_HOME/chatgpt-flags.conf` and merges any `--enable-features=` line with the defaults.
+* Sets `TMPDIR` to `$XDG_CACHE_HOME/tmp`, then runs `zypak-wrapper /app/lib/chatgpt/ChatGPT`.
 
-### 2.3 踩坑与针对性修复 (关键经验)
-1. **图标尺寸合规报错**:
-   * *问题*: OpenAI 提供的 `chatgpt.png` 尺寸为 1024×1024，直接置于 `256x256` 目录会导致 Flatpak 导出阶段报错：`Image too large (1024x1024). Max. size 512x512`。
-   * *解决*: 在构建阶段利用 SDK 自带的 `ffmpeg`，自动切分为 16x16、32x32、48x48、64x64、128x128、256x256、512x512 全套标准尺寸。
-2. **构建环境**:
-   * 宿主机自带 Flatpak 版构建工具 `org.flatpak.Builder`。
-   * 宿主机已有 `org.freedesktop.Platform//26.08`、`Sdk//26.08` 与 `Electron2.BaseApp//26.08`，直接调用 `flatpak run org.flatpak.Builder ...` 仅需 20 秒即可完成组装构建。
-3. **Codex 沙箱命令执行层完全修复 (`mountinfo path is not absolute`)**:
-   * **故障现象**: ChatGPT 客户端中的 Codex Agent 在执行 shell 命令时 100% 报错：`error building bubblewrap command: mountinfo path is not absolute`。
-   * **深度根因定位**:
-     1. 上游 Bug：Codex 在 `daemon_mounts.rs` 中遍历 `/proc/self/mountinfo` 解析挂载根，要求所有 decoded path 必须满足 `path.is_absolute()`（首字符为 `/`）。
-     2. Flatpak 布局冲突：Flatpak 沙盒内置了用于跟踪用户命名空间的锚点挂载 `user:[<inode>] /run/.userns nsfs`，其 root 为 `user:[...]`，并非以 `/` 开头，直接触发错误返回并中断命令执行。
-     3. 命名空间冲突：Flatpak 自身已是顶层 bubblewrap 沙盒，默认 seccomp 阻止二次创建 unprivileged user namespace（`CLONE_NEWUSER`）。原生 `bwrap` 在内部无法启动。
-   * **完美解决策略**:
-     1. **二进制热修补 (ELF Patch)**：
-        - 针对 `/app/lib/chatgpt/resources/codex` 反汇编定位校验点，将路径有效性检查分支（放行非绝对路径挂载根，使 `/run/.userns` 自然跳过而不报错）与内置 `bwrap` SHA-256 摘要校验分支进行精准修补。
-        - 针对当前版本 `26.1016.51333-1` (Codex `0.163.0-alpha.11`)：
-          * 挂载根绝对路径检查：`0x93f7573` 处 `41803f2f488b6c24200f8539ffffff` (`jne`) 替换为 6 个 `NOP` (`909090909090`)。
-          * bwrap SHA-256 摘要校验：`0x9436af4` 处 `660fefc9660f76c80f50c983f10f746a8b4c2428` (`je 0x9436b6e`) 替换为 `...eb6a...` (`jmp 0x9436b6e`)，无条件放行兼容垫片。
-        - 针对历史版本 `26.917.61114-1`：分别在 `0x8757e4b` (`0f853affffff` -> 6 NOPs) 与 `0x87898b7` (`752a` -> 2 NOPs)。
-     2. **极简 C 语言 bwrap 兼容垫片**：
-        - 编写并编译轻量级 `/app/bin/bwrap`（同时复制至 `codex-resources/bwrap` 与 `resources/bwrap`）。
-        - 处理 `--argv0 codex-linux-sandbox`，剥离多余沙箱外层参数，利用 `execvp` 安全透明地移交命令给 codex 内置命令处理器及 Flatpak 自身的沙箱隔离环境。
-     3. **自动化集成**：全套修补逻辑已写入 `com.openai.chatgpt.yaml` 的构建脚本中，构建后开箱即用。
+### 2.3 Codex command execution
+Codex runs shell commands through bubblewrap, which fails inside Flatpak:
 
-4. **运行时环境诊断反馈与说明**:
-   - **Documents 目录只读问题 (已彻底修复)**:
-     - *根因*: 清单 `finish-args` 中遗留了 `--filesystem=xdg-documents:ro`。Flatpak 的权限覆盖原则中，特异性更高的目录配置优先级高于 `--filesystem=home`，导致 `~/Documents` 被单独覆写为只读挂载。
-     - *修复*: 清单已修改为 `--filesystem=xdg-documents`（读写），并通过 `flatpak-builder --user --install` 重新构建部署，经 `/proc/self/mountinfo` 实测验证挂载已恢复为 `rw` 读写状态。
-   - **网络连接行为说明 (符合 Codex 安全策略预期)**:
-     - *Flatpak 层*: 容器开放了 `--share=network`，测试 `curl https://api.openai.com` 与 `google.com` 均秒通，Flatpak 外部网络环境完全正常。
-     - *Codex 沙箱内*: Codex Agent 执行命令默认采用 `"network": "restricted"` 安全隔离策略，沙箱内部会屏蔽外部网络连接。如果任务确实需要沙箱内联网，可在 ChatGPT 客户端界面中将执行权限调为 Full Access 或审批通过网络提升请求。
-   - **MCP 资源为空说明 (正常初始状态)**:
-     - 内置核心插件 `plugins.codex-app-tools@openai-bundled`（含 `codex_app`、`browser`、`computer-use` 等）均已正常加载并随服务拉起。
-     - MCP 资源列表为空是因为用户尚未配置自定义的第三方外部 MCP Server 连接器，属于客户端默认正常表现。
+1. Codex parses `/proc/self/mountinfo` and requires every mount root to be absolute. Flatpak's nsfs mount at `/run/.userns` has the root `user:[<inode>]`, so Codex returns `error building bubblewrap command: mountinfo path is not absolute`.
+2. Flatpak's seccomp filter blocks `CLONE_NEWUSER`, so a nested bubblewrap can't create a sandbox.
+
+Fixes:
+
+* `scripts/patch-codex.py` patches two branches in `resources/codex`:
+  * the mount-root check (`cmp byte [r15], '/'` followed by `jne rel32`, replaced with six NOPs);
+  * the SHA-256 check on the bundled bubblewrap (`je rel8` changed to `jmp`, or `jne rel8` to NOPs on older builds).
+  Each pattern must match exactly once and sit within 0x400 bytes of code that references the matching error string. Otherwise the script exits non-zero and the build fails.
+* `bwrap_shim.c` honors only options that affect the child process (`--argv0`, `--chdir`, `--die-with-parent`, `--setenv`, `--unsetenv`, `--clearenv`), skips everything up to `--`, and `execvp`s the command.
+* Which copy is used (tested 2026-11-15 by replacing each copy with a logging build): Codex runs `/app/bin/bwrap --help` once as a probe, then executes every command through `resources/codex-resources/bwrap`. The former third copy at `resources/bwrap` was never called and has been removed.
+* `scripts/verify-codex-sandbox.sh` runs `codex sandbox -- sh -c 'echo codex-sandbox-ok'`. CI runs it against the freshly built repository and fails only on the two patched errors. Other failures become warnings, because the CI container may not support seccomp or user namespaces.
+
+### 2.4 Behavior verified on a real system (2026-11-15, 26.1111.21308)
+* Installing from the signed repository works with `gpg-verify=true`; the app commit has a good signature from `B82A22666F3DEC39`. Before this date the appstream branches were unsigned and `flatpak update --appstream chatgpt` failed. `scripts/sign-repo.sh` now signs every ref and checks the result.
+* `codex sandbox` runs commands, so both patches take effect.
+* Network restriction holds: inside `codex sandbox`, DNS resolution fails and `connect()` returns `EPERM`.
+* Filesystem restriction does not: a command in the default sandbox mode could create a file in `$HOME` outside the working directory.
+* Electron `safeStorage` uses the system keyring: cookies in `config/Codex/Default/Cookies` carry the `v11` prefix (keyring-backed key). One older `v10` entry predates the keyring permissions.
+* The runtime has `python3` and `curl` but no `git`, `node`, `gcc`, or `make`. The app has no `org.freedesktop.Flatpak` permission, so Codex can't reach host tools unless the user grants it.
+
+### 2.5 Permissions
+* `--filesystem=home` lets Codex work on projects anywhere in the home directory. An earlier `--filesystem=xdg-documents:ro` overrode it and made `~/Documents` read-only; it has been removed.
+* `org.freedesktop.secrets` and `org.kde.kwalletd5/6` are for Electron `safeStorage`.
 
 ---
 
-## 3. 完整 Flatpak 清单文件 (`com.openai.chatgpt.yaml`)
+## 3. CI/CD and hosting
 
-```yaml
-app-id: com.openai.chatgpt
-runtime: org.freedesktop.Platform
-runtime-version: "26.08"
-sdk: org.freedesktop.Sdk
-base: org.electronjs.Electron2.BaseApp
-base-version: "26.08"
-command: chatgpt
-separate-locales: false
-
-finish-args:
-  - --socket=wayland
-  - --socket=fallback-x11
-  - --share=ipc
-  - --device=dri
-  - --socket=pulseaudio
-  - --share=network
-  - --talk-name=org.freedesktop.Notifications
-  - --talk-name=org.kde.StatusNotifierWatcher
-  - --filesystem=xdg-download
-  - --filesystem=xdg-documents
-  - --env=OZONE_PLATFORM=wayland
-  - --filesystem=home
-
-modules:
-  - name: chatgpt
-    buildsystem: simple
-    build-options:
-      no-debuginfo: true
-      strip: false
-    sources:
-      - type: dir
-        path: extracted
-    build-commands:
-      # 1. 部署程序本体
-      - mkdir -p /app/lib/chatgpt /app/share/applications /app/bin /app/share/metainfo
-      - cp -a usr/lib/chatgpt/* /app/lib/chatgpt/
-
-      # 2. 安装并修正桌面文件
-      - install -Dm644 usr/share/applications/chatgpt.desktop /app/share/applications/com.openai.chatgpt.desktop
-      - desktop-file-edit --set-key=Exec --set-value="chatgpt %U" /app/share/applications/com.openai.chatgpt.desktop
-      - desktop-file-edit --set-key=Icon --set-value="com.openai.chatgpt" /app/share/applications/com.openai.chatgpt.desktop
-
-      # 3. 安装 AppStream 元数据
-      - install -Dm644 usr/share/metainfo/com.openai.chatgpt.metainfo.xml /app/share/metainfo/com.openai.chatgpt.metainfo.xml
-
-      # 4. 生成符合 Freedesktop 标准的多尺寸图标（避免 1024x1024 校验失败）
-      - |
-        for size in 16 32 48 64 128 256 512; do
-          mkdir -p /app/share/icons/hicolor/${size}x${size}/apps
-          ffmpeg -y -v error -i usr/share/pixmaps/chatgpt.png -vf scale=${size}:${size} /app/share/icons/hicolor/${size}x${size}/apps/com.openai.chatgpt.png
-        done
-
-      # 5. 修补 codex 二进制 (解决 Flatpak 下 nsfs /run/.userns 导致的 mountinfo 非绝对路径校验失败，并允许自定义 bwrap 垫片)
-      - |
-        python3 - << 'PYEOF'
-        filepath = "/app/lib/chatgpt/resources/codex"
-        with open(filepath, "rb") as f:
-            data = bytearray(f.read())
-
-        # 1. 消除 mountinfo 非绝对路径报错 (nsfs user:[...] /run/.userns)
-        p1_before = bytes.fromhex("41803f2f488b6c24200f8539ffffff")
-        p1_after  = bytes.fromhex("41803f2f488b6c2420909090909090")
-        assert data.count(p1_before) == 1, "mount_path check pattern not unique"
-        data = data.replace(p1_before, p1_after)
-
-        # 2. 绕过内置 bwrap SHA-256 摘要校验
-        p2_before = bytes.fromhex("660fefc9660f76c80f50c983f10f746a8b4c2428")
-        p2_after  = bytes.fromhex("660fefc9660f76c80f50c983f10feb6a8b4c2428")
-        assert data.count(p2_before) == 1, "bwrap digest check pattern not unique"
-        data = data.replace(p2_before, p2_after)
-
-        with open(filepath, "wb") as f:
-            f.write(data)
-        print("Codex binary patched successfully.")
-        PYEOF
-
-      # 6. 编译安装 Flatpak 环境下的 bwrap 适配垫片 (处理 --argv0 并透明转发命令)
-      - |
-        cat << 'EOF' > /tmp/bwrap_shim.c
-        #include <stdio.h>
-        #include <stdlib.h>
-        #include <unistd.h>
-        #include <string.h>
-        #include <sys/prctl.h>
-        #include <signal.h>
-
-        int main(int argc, char *argv[]) {
-            if (argc >= 2) {
-                if (strcmp(argv[1], "--version") == 0) {
-                    printf("bubblewrap 0.11.1\n");
-                    return 0;
-                }
-                if (strcmp(argv[1], "--help") == 0) {
-                    printf("bubblewrap compatibility shim for Flatpak\n");
-                    return 0;
-                }
-            }
-
-            const char *argv0 = NULL;
-            int die_with_parent = 0;
-            int cmd_idx = -1;
-
-            for (int i = 1; i < argc; i++) {
-                if (strcmp(argv[i], "--argv0") == 0 && i + 1 < argc) {
-                    argv0 = argv[++i];
-                } else if (strcmp(argv[i], "--die-with-parent") == 0) {
-                    die_with_parent = 1;
-                } else if (strcmp(argv[i], "--chdir") == 0 && i + 1 < argc) {
-                    if (chdir(argv[++i]) != 0) {
-                        perror("chdir");
-                    }
-                } else if (strcmp(argv[i], "--") == 0) {
-                    cmd_idx = i + 1;
-                    break;
-                }
-            }
-
-            if (die_with_parent) {
-                prctl(PR_SET_PDEATHSIG, SIGKILL);
-            }
-
-            if (cmd_idx >= 0 && cmd_idx < argc) {
-                char *target = argv[cmd_idx];
-                if (argv0) {
-                    argv[cmd_idx] = (char *)argv0;
-                }
-                execvp(target, &argv[cmd_idx]);
-                perror("execvp");
-                return 127;
-            }
-
-            fprintf(stderr, "bwrap shim: missing '--' command separator\n");
-            return 1;
-        }
-        EOF
-        gcc -O2 /tmp/bwrap_shim.c -o /app/bin/bwrap
-        rm -f /tmp/bwrap_shim.c
-        chmod +x /app/bin/bwrap
-        mkdir -p /app/lib/chatgpt/resources/codex-resources
-        cp /app/bin/bwrap /app/lib/chatgpt/resources/codex-resources/bwrap
-        cp /app/bin/bwrap /app/lib/chatgpt/resources/bwrap
-        chmod +x /app/lib/chatgpt/resources/codex-resources/bwrap /app/lib/chatgpt/resources/bwrap
-
-      # 7. 生成 zypak 启动脚本
-      - |
-        cat << 'EOF' > /app/bin/chatgpt
-        #!/bin/sh
-        exec zypak-wrapper /app/lib/chatgpt/ChatGPT "$@"
-        EOF
-      - chmod +x /app/bin/chatgpt
-```
-
----
-
-## 4. 构建、安装与测试指令备忘
-
-```bash
-# 进入工程目录
-cd /var/home/jhuang/Workspace/flatpak-chatgpt
-
-# 本地直接构建并安装到当前用户环境
-flatpak run org.flatpak.Builder --user --install --force-clean build-dir com.openai.chatgpt.yaml
-
-# 验证沙盒运行与版本号
-flatpak run com.openai.chatgpt --version
-# 输出: 26.917.61114
-
-# 导出为单文件离线分发 Bundle (约 376MB)
-flatpak build-bundle ~/.local/share/flatpak/repo com.openai.chatgpt.flatpak com.openai.chatgpt
-
-# 任何机器离线安装 Bundle
-flatpak install com.openai.chatgpt.flatpak
-```
-
----
-
-## 5. 生产级自动化重构与 GitHub Actions 架构 (2026-10-21)
-
-参考 `flatpak-agy` 最佳实践，本项目已重构为高内聚、零人工维护的生产级 Flatpak 应用仓库：
-* **远程仓库**: `git@github.com:jhuang6451/chatgpt-flatpak.git`
-* **GitHub Pages 主页**: `https://jhuang6451.github.io/chatgpt-flatpak/`
-* **核心组件与模块**:
-  1. `.github/workflows/build-and-deploy.yml`: 自动化构建、OSTree 静态增量切片生成、Pages 部署与 Release 发行包自动上传。
-  2. `.github/workflows/check-update.yml`: 每 6 小时自动轮询 OpenAI YUM 仓库 (`repomd.xml`)，新版自动更新清单与元数据。
-  3. `scripts/update-checker.py`: 官方 RPM 仓库更新检查器，支持解析 `primary.xml.gz` 提取最新版本与哈希。
-  4. `scripts/patch-codex.py`: 语义启发式二进制修补器，自动定位并清除 `mountinfo path is not absolute` 与 `bwrap digest` 拦截。
-  5. `bwrap_shim.c`: 独立 C 语言 bubblewrap 兼容转发垫片。
-  6. `web/`: 现代化 ChatGPT 风格的 Flatpak 仓库在线主页与一键安装页面。
-  7. `chatgpt.flatpakref` & `chatgpt.flatpakrepo`: 原生 Flatpak 仓库与单文件安装描述符。
-
+1. **Build and deploy (`.github/workflows/build-and-deploy.yml`)**:
+   * Runs on pushes to `master` that touch the manifest, scripts, web pages, icons, or the workflow.
+   * Builds in the Flathub Action container, runs the Codex sandbox check, then signs every ref and the summary with `scripts/sign-repo.sh` (secrets `GPG_PRIVATE_KEY` and `GPG_KEY_ID`).
+   * Builds from an empty repository each time. The remote keeps only the latest commit and offers no deltas from older versions.
+   * Tags `v<version>` and publishes a GitHub Release with the `.flatpak` bundle, `ostree-repo.tar.gz`, `.flatpakref`, and `.flatpakrepo`.
+   * Deploys GitHub Pages through the Actions Pages API. Pages hosts the website (`web/`) and the full OSTree repository under `repo/`.
+2. **Upstream check (`.github/workflows/check-update.yml`)**:
+   * Runs `scripts/update-checker.py --ci --update` every 6 hours.
+   * On a new version, updates the manifest URL and hash and the metainfo release list, commits, and triggers the build.

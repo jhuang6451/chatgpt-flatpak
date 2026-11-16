@@ -72,6 +72,9 @@ jobs:
           cache: true
           arch: x86_64
 
+      - name: Verify Codex sandbox patches
+        run: scripts/verify-codex-sandbox.sh repo
+
       - name: Import GPG signing key
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
